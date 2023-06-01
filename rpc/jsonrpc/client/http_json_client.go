@@ -188,20 +188,18 @@ func (c *Client) Call(
 	params map[string]interface{},
 	result interface{},
 ) (interface{}, error) {
-	id := c.nextRequestID()
-
-	request, err := types.MapToRequest(id, method, params)
-	if err != nil {
-		return nil, fmt.Errorf("failed to encode params: %w", err)
+	urlValues := url.Values{}
+	for name, value := range params {
+		valueJSON, err := json.Marshal(value)
+		if err != nil {
+			return nil, err
+		}
+		urlValues.Add(name, string(valueJSON))
 	}
 
-	requestBytes, err := json.Marshal(request)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
-	}
+	requestUrl := fmt.Sprintf("%s/%s?%s", c.address, method, urlValues.Encode())
+	httpRequest, err := http.NewRequestWithContext(ctx, http.MethodGet, requestUrl, nil)
 
-	requestBuf := bytes.NewBuffer(requestBytes)
-	httpRequest, err := http.NewRequestWithContext(ctx, http.MethodPost, c.address, requestBuf)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
@@ -223,7 +221,7 @@ func (c *Client) Call(
 		return nil, fmt.Errorf("%s. Failed to read response body: %w", getHTTPRespErrPrefix(httpResponse), err)
 	}
 
-	res, err := unmarshalResponseBytes(responseBytes, id, result)
+	res, err := unmarshalResponseBytes(responseBytes, -1, result)
 	if err != nil {
 		return nil, fmt.Errorf("%s. %w", getHTTPRespErrPrefix(httpResponse), err)
 	}
