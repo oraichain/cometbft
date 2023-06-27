@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"time"
 
 	cmtmath "github.com/cometbft/cometbft/libs/math"
 	cmtquery "github.com/cometbft/cometbft/libs/pubsub/query"
@@ -108,22 +109,31 @@ func TxSearch(
 	pageSize := cmtmath.MinInt(perPage, totalCount-skipCount)
 
 	apiResults := make([]*ctypes.ResultTx, 0, pageSize)
+
+	blocks := make(map[int64]*types.Block)
+
 	for i := skipCount; i < skipCount+pageSize; i++ {
 		r := results[i]
 
+		if _, ok := blocks[r.Height]; !ok {
+			blocks[r.Height] = env.BlockStore.LoadBlock(r.Height)
+		}
+
+		block := blocks[r.Height]
+
 		var proof types.TxProof
 		if prove {
-			block := env.BlockStore.LoadBlock(r.Height)
-			proof = block.Data.Txs.Proof(int(r.Index))
+			proof = block.Data.Txs.Proof(int(r.Index)) // XXX: overflow on 32-bit machines
 		}
 
 		apiResults = append(apiResults, &ctypes.ResultTx{
-			Hash:     types.Tx(r.Tx).Hash(),
-			Height:   r.Height,
-			Index:    r.Index,
-			TxResult: r.Result,
-			Tx:       r.Tx,
-			Proof:    proof,
+			Hash:      types.Tx(r.Tx).Hash(),
+			Height:    r.Height,
+			Index:     r.Index,
+			TxResult:  r.Result,
+			Timestamp: block.Time.Format(time.RFC3339),
+			Tx:        r.Tx,
+			Proof:     proof,
 		})
 	}
 
