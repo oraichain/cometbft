@@ -196,12 +196,13 @@ type ResultCheckTx struct {
 
 // Result of querying for a tx
 type ResultTx struct {
-	Hash     bytes.HexBytes    `json:"hash"`
-	Height   int64             `json:"height"`
-	Index    uint32            `json:"index"`
-	TxResult abci.ExecTxResult `json:"tx_result"`
-	Tx       types.Tx          `json:"tx"`
-	Proof    types.TxProof     `json:"proof,omitempty"`
+	Hash      bytes.HexBytes    `json:"hash"`
+	Height    int64             `json:"height"`
+	Index     uint32            `json:"index"`
+	TxResult  abci.ExecTxResult `json:"tx_result"`
+	Timestamp string            `json:"timestamp,omitempty"`
+	Tx        types.Tx          `json:"tx"`
+	Proof     types.TxProof     `json:"proof,omitempty"`
 }
 
 // Result of searching for txs
