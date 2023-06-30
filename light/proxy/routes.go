@@ -30,6 +30,7 @@ func RPCRoutes(c *lrpc.Client) map[string]*rpcserver.RPCFunc {
 		"commit":               rpcserver.NewRPCFunc(makeCommitFunc(c), "height", rpcserver.Cacheable("height")),
 		"tx":                   rpcserver.NewRPCFunc(makeTxFunc(c), "hash,prove", rpcserver.Cacheable()),
 		"tx_search":            rpcserver.NewRPCFunc(makeTxSearchFuncMatchEvents(c), "query,prove,page,per_page,order_by,match_events"),
+		"tx_search_with_page":  rpcserver.NewRPCFunc(makeTxSearchFuncMatchEventsWithPage(c), "query,prove,page,per_page,match_events"),
 		"block_search":         rpcserver.NewRPCFunc(makeBlockSearchFuncMatchEvents(c), "query,page,per_page,order_by,match_events"),
 		"validators":           rpcserver.NewRPCFunc(makeValidatorsFunc(c), "height,page,per_page", rpcserver.Cacheable("height")),
 		"dump_consensus_state": rpcserver.NewRPCFunc(makeDumpConsensusStateFunc(c), ""),
@@ -165,6 +166,31 @@ func makeTxSearchFuncMatchEvents(c *lrpc.Client) rpcTxSearchFuncMatchEvents {
 			query = "match.events = 0 AND " + query
 		}
 		return c.TxSearch(ctx.Context(), query, prove, page, perPage, orderBy)
+	}
+}
+
+type rpcTxSearchFuncMatchEventsWithPage func(
+	ctx *rpctypes.Context,
+	query string,
+	prove bool,
+	page, perPage *int,
+	matchEvents bool,
+) (*ctypes.ResultTxSearch, error)
+
+func makeTxSearchFuncMatchEventsWithPage(c *lrpc.Client) rpcTxSearchFuncMatchEventsWithPage {
+	return func(
+		ctx *rpctypes.Context,
+		query string,
+		prove bool,
+		page, perPage *int,
+		matchEvents bool,
+	) (*ctypes.ResultTxSearch, error) {
+		if matchEvents {
+			query = "match.events = 1 AND " + query
+		} else {
+			query = "match.events = 0 AND " + query
+		}
+		return c.TxSearchWithPage(ctx.Context(), query, prove, page, perPage)
 	}
 }
 

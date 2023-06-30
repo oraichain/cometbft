@@ -59,6 +59,10 @@ func (BackportTxIndexer) Search(context.Context, *query.Query) ([]*abci.TxResult
 	return nil, errors.New("the TxIndexer.Search method is not supported")
 }
 
+func (BackportTxIndexer) SearchWithPage(context.Context, *query.Query, *int, *int) ([]*abci.TxResult, int, error) {
+	return nil, 0, errors.New("the TxIndexer.SearchWithPage method is not supported")
+}
+
 // BlockIndexer returns a bridge that implements the CometBFT v0.34 block
 // indexer interface, using the Postgres event sink as a backing store.
 func (es *EventSink) BlockIndexer() BackportBlockIndexer {

@@ -52,6 +52,71 @@ func Tx(ctx *rpctypes.Context, hash []byte, prove bool) (*ctypes.ResultTx, error
 	}, nil
 }
 
+func TxSearchWithPage(
+	ctx *rpctypes.Context,
+	query string,
+	prove bool,
+	pagePtr, perPagePtr *int,
+) (*ctypes.ResultTxSearch, error) {
+
+	// if index is disabled, return error
+	if _, ok := env.TxIndexer.(*null.TxIndex); ok {
+		return nil, errors.New("transaction indexing is disabled")
+	} else if len(query) > maxQueryLength {
+		return nil, errors.New("maximum query length exceeded")
+	}
+
+	q, err := cmtquery.New(query)
+	if err != nil {
+		return nil, err
+	}
+
+	results, totalCount, err := env.TxIndexer.SearchWithPage(ctx.Context(), q, pagePtr, perPagePtr)
+	if err != nil {
+		return nil, err
+	}
+
+	// paginate results
+	perPage := validatePerPage(perPagePtr)
+
+	page, err := validatePage(pagePtr, perPage, totalCount)
+	if err != nil {
+		return nil, err
+	}
+
+	skipCount := validateSkipCount(page, perPage)
+	pageSize := cmtmath.MinInt(perPage, totalCount-skipCount)
+
+	apiResults := make([]*ctypes.ResultTx, 0, pageSize)
+
+	blocks := make(map[int64]*types.Block)
+
+	for _, r := range results {
+		if _, ok := blocks[r.Height]; !ok {
+			blocks[r.Height] = env.BlockStore.LoadBlock(r.Height)
+		}
+
+		block := blocks[r.Height]
+
+		var proof types.TxProof
+		if prove {
+			proof = block.Data.Txs.Proof(int(r.Index)) // XXX: overflow on 32-bit machines
+		}
+
+		apiResults = append(apiResults, &ctypes.ResultTx{
+			Hash:      types.Tx(r.Tx).Hash(),
+			Height:    r.Height,
+			Index:     r.Index,
+			TxResult:  r.Result,
+			Timestamp: block.Time.Format(time.RFC3339),
+			Tx:        r.Tx,
+			Proof:     proof,
+		})
+	}
+
+	return &ctypes.ResultTxSearch{Txs: apiResults, TotalCount: totalCount}, nil
+}
+
 // TxSearch allows you to query for multiple transactions results. It returns a
 // list of transactions (maximum ?per_page entries) and the total count.
 // More: https://docs.cometbft.com/v0.34/rpc/#/Info/tx_search
@@ -163,5 +228,22 @@ func TxSearchMatchEvents(
 		query = "match.events = 0 AND " + query
 	}
 	return TxSearch(ctx, query, prove, pagePtr, perPagePtr, orderBy)
+
+}
+
+func TxSearchMatchEventsWithPage(
+	ctx *rpctypes.Context,
+	query string,
+	prove bool,
+	pagePtr, perPagePtr *int,
+	matchEvents bool,
+) (*ctypes.ResultTxSearch, error) {
+
+	if matchEvents {
+		query = "match.events = 1 AND " + query
+	} else {
+		query = "match.events = 0 AND " + query
+	}
+	return TxSearchWithPage(ctx, query, prove, pagePtr, perPagePtr)
 
 }

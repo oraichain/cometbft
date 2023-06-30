@@ -192,6 +192,16 @@ func (c *Local) TxSearch(
 	return core.TxSearch(c.ctx, query, prove, page, perPage, orderBy)
 }
 
+func (c *Local) TxSearchWithPage(
+	_ context.Context,
+	query string,
+	prove bool,
+	page,
+	perPage *int,
+) (*ctypes.ResultTxSearch, error) {
+	return core.TxSearchWithPage(c.ctx, query, prove, page, perPage)
+}
+
 func (c *Local) BlockSearch(
 	_ context.Context,
 	query string,

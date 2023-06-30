@@ -32,3 +32,7 @@ func (txi *TxIndex) Index(result *abci.TxResult) error {
 func (txi *TxIndex) Search(ctx context.Context, q *query.Query) ([]*abci.TxResult, error) {
 	return []*abci.TxResult{}, nil
 }
+
+func (txi *TxIndex) SearchWithPage(ctx context.Context, q *query.Query, pagePtr, perPagePtr *int) ([]*abci.TxResult, int, error) {
+	return []*abci.TxResult{}, 0, nil
+}

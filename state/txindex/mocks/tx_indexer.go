@@ -4,7 +4,7 @@ package mocks
 
 import (
 	context "context"
-
+	"errors"
 	mock "github.com/stretchr/testify/mock"
 	query "github.com/tendermint/tendermint/libs/pubsub/query"
 
@@ -90,6 +90,10 @@ func (_m *TxIndexer) Search(ctx context.Context, q *query.Query) ([]*types.TxRes
 	}
 
 	return r0, r1
+}
+
+func (_m *TxIndexer) SearchWithPage(ctx context.Context, q *query.Query,pagePtr, perPagePtr *int) ([]*types.TxResult,int, error) {
+	return nil, 0, errors.New("the TxIndexer.SearchWithPage method is not supported")
 }
 
 type mockConstructorTestingTNewTxIndexer interface {

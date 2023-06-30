@@ -181,6 +181,159 @@ func (txi *TxIndex) indexEvents(result *abci.TxResult, hash []byte, store dbm.Ba
 	return nil
 }
 
+func (txi *TxIndex) SearchWithPage(ctx context.Context, q *query.Query, pagePtr, perPagePtr *int) ([]*abci.TxResult, int, error) {
+	select {
+	case <-ctx.Done():
+		return make([]*abci.TxResult, 0), 0, nil
+
+	default:
+	}
+
+	var hashesInitialized bool
+	filteredHashes := make(map[string][]byte)
+
+	// get a list of conditions (like "tx.height > 5")
+	conditions, err := q.Conditions()
+	if err != nil {
+		return nil, 0, fmt.Errorf("error during parsing conditions from query: %w", err)
+	}
+
+	// if there is a hash condition, return the result immediately
+	hash, ok, err := lookForHash(conditions)
+	if err != nil {
+		return nil, 0, fmt.Errorf("error during searching for a hash in the query: %w", err)
+	} else if ok {
+		res, err := txi.Get(hash)
+		switch {
+		case err != nil:
+			return []*abci.TxResult{}, 0, fmt.Errorf("error while retrieving the result: %w", err)
+		case res == nil:
+			return []*abci.TxResult{}, 0, nil
+		default:
+			return []*abci.TxResult{res}, 0, nil
+		}
+	}
+
+	var matchEvents bool
+	var matchEventIdx int
+
+	// If the match.events keyword is at the beginning of the query, we will only
+	// return heights where the conditions are true within the same event
+	// and set the matchEvents to true
+	conditions, matchEvents = dedupMatchEvents(conditions)
+	// conditions to skip because they're handled before "everything else"
+	skipIndexes := make([]int, 0)
+
+	if matchEvents {
+		matchEventIdx = 0
+		skipIndexes = append(skipIndexes, matchEventIdx)
+	}
+
+	// if there is a height condition ("tx.height=3"), extract it
+	// var height int64
+	// var heightIdx int
+	var heightInfo HeightInfo
+	if matchEvents {
+		// If we are not matching events and tx.height = 3 occurs more than once, the later value will
+		// overwrite the first one. For match.events it will create problems.
+		conditions, heightInfo = dedupHeight(conditions)
+	} else {
+		heightInfo.height, heightInfo.heightEqIdx = lookForHeight(conditions)
+	}
+	if matchEvents && !heightInfo.onlyHeightEq {
+		skipIndexes = append(skipIndexes, heightInfo.heightEqIdx)
+	}
+	// extract ranges
+	// if both upper and lower bounds exist, it's better to get them in order not
+	// no iterate over kvs that are not within range.
+	//If we have a query range over height and want to still look for
+	// specific event values we do not want to simply return all
+	// transactios in this height range. We remember the height range info
+	// and pass it on to match() to take into account when processing events.
+	ranges, rangeIndexes, heightRange := indexer.LookForRangesWithHeight(conditions)
+	heightInfo.heightRange = heightRange
+
+	fmt.Printf("ranges %v %v\n", conditions, ranges)
+
+	if len(ranges) > 0 {
+		skipIndexes = append(skipIndexes, rangeIndexes...)
+
+		for _, qr := range ranges {
+
+			// If we have additional constraints and want to query per event
+			// attributes, we cannot simply return all blocks for a height.
+			// But we remember the height we want to find and forward it to
+			// match(). If we only have the height constraint and match.events keyword
+			// in the query (the second part of the ||), we don't need to query
+			// per event conditions and return all events within the height range.
+			if qr.Key == types.TxHeightKey && matchEvents && !heightInfo.onlyHeightRange {
+				continue
+			}
+			if !hashesInitialized {
+				filteredHashes = txi.matchRange(ctx, qr, startKey(qr.Key), filteredHashes, true, matchEvents, heightInfo)
+				hashesInitialized = true
+
+				// Ignore any remaining conditions if the first condition resulted
+				// in no matches (assuming implicit AND operand).
+				if len(filteredHashes) == 0 {
+					break
+				}
+			} else {
+				filteredHashes = txi.matchRange(ctx, qr, startKey(qr.Key), filteredHashes, false, matchEvents, heightInfo)
+			}
+		}
+	}
+
+	// for all other conditions
+	for i, c := range conditions {
+		if intInSlice(i, skipIndexes) {
+			continue
+		}
+
+		if !hashesInitialized {
+			filteredHashes = txi.match(ctx, c, startKeyForCondition(c, heightInfo.height), filteredHashes, true, matchEvents, heightInfo)
+			hashesInitialized = true
+
+			// Ignore any remaining conditions if the first condition resulted
+			// in no matches (assuming implicit AND operand).
+			if len(filteredHashes) == 0 {
+				break
+			}
+		} else {
+			filteredHashes = txi.match(ctx, c, startKeyForCondition(c, heightInfo.height), filteredHashes, false, matchEvents, heightInfo)
+		}
+	}
+
+	results := make([]*abci.TxResult, 0, len(filteredHashes))
+	resultMap := make(map[string]struct{})
+	totalCount := 0
+	page := *pagePtr
+	perPage := *perPagePtr
+	offset := page * perPage
+	for _, h := range filteredHashes {
+		res, err := txi.Get(h)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to get Tx{%X}: %w", h, err)
+		}
+		hashString := string(h)
+		if _, ok := resultMap[hashString]; !ok {
+			resultMap[hashString] = struct{}{}
+			totalCount++
+			if totalCount > offset && len(results) < perPage {
+				results = append(results, res)
+			}
+		}
+		// Potentially exit early.
+		select {
+		case <-ctx.Done():
+			break
+		default:
+		}
+	}
+
+	return results, totalCount, nil
+}
+
 // Search performs a search using the given query.
 //
 // It breaks the query into conditions (like "tx.height > 5"). For each
@@ -263,6 +416,8 @@ func (txi *TxIndex) Search(ctx context.Context, q *query.Query) ([]*abci.TxResul
 	// and pass it on to match() to take into account when processing events.
 	ranges, rangeIndexes, heightRange := indexer.LookForRangesWithHeight(conditions)
 	heightInfo.heightRange = heightRange
+
+	fmt.Printf("ranges %v %v\n", conditions, ranges)
 
 	if len(ranges) > 0 {
 		skipIndexes = append(skipIndexes, rangeIndexes...)

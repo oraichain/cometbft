@@ -501,6 +501,35 @@ func (c *baseRPCClient) TxSearch(
 	return result, nil
 }
 
+func (c *baseRPCClient) TxSearchWithPage(
+	ctx context.Context,
+	query string,
+	prove bool,
+	page,
+	perPage *int,
+) (*ctypes.ResultTxSearch, error) {
+
+	result := new(ctypes.ResultTxSearch)
+	params := map[string]interface{}{
+		"query": query,
+		"prove": prove,
+	}
+
+	if page != nil {
+		params["page"] = page
+	}
+	if perPage != nil {
+		params["per_page"] = perPage
+	}
+
+	_, err := c.caller.Call(ctx, "tx_search_with_page", params, result)
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
 func (c *baseRPCClient) BlockSearch(
 	ctx context.Context,
 	query string,

@@ -488,6 +488,15 @@ func (c *Client) TxSearch(
 	return c.next.TxSearch(ctx, query, prove, page, perPage, orderBy)
 }
 
+func (c *Client) TxSearchWithPage(
+	ctx context.Context,
+	query string,
+	prove bool,
+	page, perPage *int,
+) (*ctypes.ResultTxSearch, error) {
+	return c.next.TxSearchWithPage(ctx, query, prove, page, perPage)
+}
+
 func (c *Client) BlockSearch(
 	ctx context.Context,
 	query string,
