@@ -559,7 +559,7 @@ func (txi *TxIndex) matchRange(
 	fromKey = append(fromKey, heightToBytes(lowerBound)...)
 	fromKey = append(fromKey, []byte(tagKeySeparator)...)
 	toKey := append([]byte{}, startKey...)
-	toKey = append(toKey, heightToBytes(upperBound)...)
+	toKey = append(toKey, heightToBytes(upperBound+1)...)
 	toKey = append(toKey, []byte(tagKeySeparator)...)
 	// already have correct range
 	it, err := txi.store.Iterator(fromKey, toKey)
