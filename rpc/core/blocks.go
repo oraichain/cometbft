@@ -30,6 +30,9 @@ func BlockchainInfo(ctx *rpctypes.Context, minHeight, maxHeight, limit int64) (*
 	if limit > MAX_BLOCKCHAIN_INFO_LIMIT {
 		limit = MAX_BLOCKCHAIN_INFO_LIMIT
 	}
+	if limit < 0 {
+		limit = 20
+	}
 
 	var err error
 	minHeight, maxHeight, err = filterMinMax(
