@@ -555,10 +555,11 @@ func (txi *TxIndex) matchRange(
 	}
 
 	tmpHashes := make(map[string][]byte)
-
-	fromKey := append(bytes.Clone(startKey), heightToBytes(lowerBound)...)
+	fromKey := append([]byte{}, startKey...)
+	fromKey = append(fromKey, heightToBytes(lowerBound)...)
 	fromKey = append(fromKey, []byte(tagKeySeparator)...)
-	toKey := append(bytes.Clone(startKey), heightToBytes(upperBound)...)
+	toKey := append([]byte{}, startKey...)
+	toKey = append(toKey, heightToBytes(upperBound)...)
 	toKey = append(toKey, []byte(tagKeySeparator)...)
 	// already have correct range
 	it, err := txi.store.Iterator(fromKey, toKey)
