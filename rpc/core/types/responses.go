@@ -14,8 +14,9 @@ import (
 
 // List of blocks
 type ResultBlockchainInfo struct {
-	LastHeight int64              `json:"last_height"`
-	BlockMetas []*types.BlockMeta `json:"block_metas"`
+	LastHeight   int64                 `json:"last_height"`
+	BlockMetas   []*types.BlockMeta    `json:"block_metas"`
+	BlockResults []*ResultBlockResults `json:"block_results"`
 }
 
 // Genesis file

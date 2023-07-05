@@ -39,14 +39,22 @@ func BlockchainInfo(ctx *rpctypes.Context, minHeight, maxHeight int64) (*ctypes.
 	env.Logger.Debug("BlockchainInfoHandler", "maxHeight", maxHeight, "minHeight", minHeight)
 
 	blockMetas := []*types.BlockMeta{}
+	blockResults := []*ctypes.ResultBlockResults{}
 	for height := maxHeight; height >= minHeight; height-- {
 		blockMeta := env.BlockStore.LoadBlockMeta(height)
+		blockResult, err := BlockResults(ctx, &height)
+		if err != nil {
+			continue
+		}
+		blockResults = append(blockResults, blockResult)
 		blockMetas = append(blockMetas, blockMeta)
 	}
 
 	return &ctypes.ResultBlockchainInfo{
-		LastHeight: env.BlockStore.Height(),
-		BlockMetas: blockMetas}, nil
+		LastHeight:   env.BlockStore.Height(),
+		BlockMetas:   blockMetas,
+		BlockResults: blockResults,
+	}, nil
 }
 
 // error if either min or max are negative or min > max

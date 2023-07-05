@@ -326,6 +326,16 @@ func TestAppCalls(t *testing.T) {
 		assert.True(pres.IsOK())
 
 		// XXX Test proof
+		// check blockchain info, now that we know there is info
+		info, err = c.BlockchainInfo(context.Background(), txh, txh)
+		require.NoError(err)
+		assert.Equal(1, len(info.BlockResults))
+		for _, data := range info.BlockResults {
+			assert.Equal(1, len(data.TxsResults))
+			for _, tx := range data.TxsResults {
+				fmt.Println("info tx: ", tx)
+			}
+		}
 	}
 }
 
