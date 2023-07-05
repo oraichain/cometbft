@@ -3,6 +3,7 @@ package kv
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"math/big"
@@ -538,9 +539,29 @@ func (txi *TxIndex) matchRange(
 		return filteredHashes
 	}
 
+	var lowerBound, upperBound int64
+
+	if _, ok := qr.AnyBound().(*big.Int); ok {
+
+		lowerBound = qr.LowerBoundValue().(*big.Int).Int64()
+		upperBound = qr.UpperBoundValue().(*big.Int).Int64()
+		// TODO: range > 5000 throw error ?
+		if upperBound-lowerBound > 5000 {
+			return filteredHashes
+		}
+
+	} else {
+		return filteredHashes
+	}
+
 	tmpHashes := make(map[string][]byte)
 
-	it, err := dbm.IteratePrefix(txi.store, startKey)
+	fromKey := append(bytes.Clone(startKey), heightToBytes(lowerBound)...)
+	fromKey = append(fromKey, []byte(tagKeySeparator)...)
+	toKey := append(bytes.Clone(startKey), heightToBytes(upperBound)...)
+	toKey = append(toKey, []byte(tagKeySeparator)...)
+	// already have correct range
+	it, err := txi.store.Iterator(fromKey, toKey)
 	if err != nil {
 		panic(err)
 	}
@@ -548,35 +569,26 @@ func (txi *TxIndex) matchRange(
 
 LOOP:
 	for ; it.Valid(); it.Next() {
+
 		if !isTagKey(it.Key()) {
 			continue
 		}
 
-		if _, ok := qr.AnyBound().(*big.Int); ok {
-			v := new(big.Int)
-			eventValue := extractValueFromKey(it.Key())
-			v, ok := v.SetString(eventValue, 10)
-			if !ok {
+		if matchEvents && qr.Key != types.TxHeightKey {
+			keyHeight, err := extractHeightFromKey(it.Key())
+			if err != nil || !checkHeightConditions(heightInfo, keyHeight) {
 				continue LOOP
 			}
-
-			if matchEvents && qr.Key != types.TxHeightKey {
-				keyHeight, err := extractHeightFromKey(it.Key())
-				if err != nil || !checkHeightConditions(heightInfo, keyHeight) {
-					continue LOOP
-				}
-			}
-			if checkBounds(qr, v) {
-				txi.setTmpHashes(tmpHashes, it, matchEvents)
-			}
-
-			// XXX: passing time in a ABCI Events is not yet implemented
-			// case time.Time:
-			// 	v := strconv.ParseInt(extractValueFromKey(it.Key()), 10, 64)
-			// 	if v == r.upperBound {
-			// 		break
-			// 	}
 		}
+
+		txi.setTmpHashes(tmpHashes, it, matchEvents)
+
+		// XXX: passing time in a ABCI Events is not yet implemented
+		// case time.Time:
+		// 	v := strconv.ParseInt(extractValueFromKey(it.Key()), 10, 64)
+		// 	if v == r.upperBound {
+		// 		break
+		// 	}
 
 		// Potentially exit early.
 		select {
@@ -669,16 +681,26 @@ func keyForEvent(key string, value []byte, result *abci.TxResult, eventSeq int64
 	))
 }
 
+func heightToBytes(height int64) []byte {
+	heightBytes := make([]byte, 8)
+	binary.BigEndian.PutUint32(heightBytes, uint32(height))
+	return heightBytes
+}
+
 func keyForHeight(result *abci.TxResult) []byte {
-	return []byte(fmt.Sprintf("%s/%d/%d/%d%s",
-		types.TxHeightKey,
-		result.Height,
+	keyBytes := []byte(types.TxHeightKey)
+	keyBytes = append(keyBytes, []byte(tagKeySeparator)...)
+	keyBytes = append(keyBytes, heightToBytes(result.Height)...)
+	keyBytes = append(keyBytes, []byte(tagKeySeparator)...)
+	key := fmt.Sprintf("%d/%d%s",
 		result.Height,
 		result.Index,
 		// Added to facilitate having the eventSeq in event keys
 		// Otherwise queries break expecting 5 entries
 		eventSeqSeparator+"0",
-	))
+	)
+	keyBytes = append(keyBytes, []byte(key)...)
+	return keyBytes
 }
 
 func startKeyForCondition(c query.Condition, height int64) []byte {
