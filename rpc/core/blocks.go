@@ -13,6 +13,8 @@ import (
 	"github.com/tendermint/tendermint/types"
 )
 
+const MAX_BLOCKCHAIN_INFO_LIMIT = 5000
+
 // BlockchainInfo gets block headers for minHeight <= height <= maxHeight.
 //
 // If maxHeight does not yet exist, blocks up to the current height will be
@@ -25,34 +27,41 @@ import (
 // More: https://docs.cometbft.com/v0.34/rpc/#/Info/blockchain
 func BlockchainInfo(ctx *rpctypes.Context, minHeight, maxHeight int64) (*ctypes.ResultBlockchainInfo, error) {
 	// maximum 20 block metas
-	const limit int64 = 20
 	var err error
 	minHeight, maxHeight, err = filterMinMax(
 		env.BlockStore.Base(),
 		env.BlockStore.Height(),
 		minHeight,
-		maxHeight,
-		limit)
+		maxHeight)
 	if err != nil {
 		return nil, err
 	}
 	env.Logger.Debug("BlockchainInfoHandler", "maxHeight", maxHeight, "minHeight", minHeight)
 
 	blockMetas := []*types.BlockMeta{}
+	blockResults := []*ctypes.MinimalBlockResults{}
 	for height := maxHeight; height >= minHeight; height-- {
 		blockMeta := env.BlockStore.LoadBlockMeta(height)
+		blockResult, err := BlockResults(ctx, &height)
+		if err != nil {
+			return nil, err
+		}
+		minimalBlockResult := ctypes.MinimalBlockResults{Height: blockResult.Height, TxsResults: blockResult.TxsResults}
+		blockResults = append(blockResults, &minimalBlockResult)
 		blockMetas = append(blockMetas, blockMeta)
 	}
 
 	return &ctypes.ResultBlockchainInfo{
-		LastHeight: env.BlockStore.Height(),
-		BlockMetas: blockMetas}, nil
+		LastHeight:   env.BlockStore.Height(),
+		BlockMetas:   blockMetas,
+		BlockResults: blockResults,
+	}, nil
 }
 
 // error if either min or max are negative or min > max
 // if 0, use blockstore base for min, latest block height for max
 // enforce limit.
-func filterMinMax(base, height, min, max, limit int64) (int64, int64, error) {
+func filterMinMax(base, height, min, max int64) (int64, int64, error) {
 	// filter negatives
 	if min < 0 || max < 0 {
 		return min, max, fmt.Errorf("heights must be non-negative")
@@ -74,7 +83,7 @@ func filterMinMax(base, height, min, max, limit int64) (int64, int64, error) {
 
 	// limit min to within `limit` of max
 	// so the total number of blocks returned will be `limit`
-	min = cmtmath.MaxInt64(min, max-limit+1)
+	max = cmtmath.MinInt64(max, min+MAX_BLOCKCHAIN_INFO_LIMIT)
 
 	if min > max {
 		return min, max, fmt.Errorf("min height %d can't be greater than max height %d", min, max)
