@@ -569,10 +569,10 @@ func (txi *TxIndex) matchRange(
 
 	tmpHashes := make(map[string][]byte)
 	fromKey := append([]byte{}, startKey...)
-	fromKey = append(fromKey, heightToBytes(lowerHeight)...)
+	fromKey = binary.BigEndian.AppendUint32(fromKey, uint32(lowerHeight))
 	fromKey = append(fromKey, []byte(tagKeySeparator)...)
 	toKey := append([]byte{}, startKey...)
-	toKey = append(toKey, heightToBytes(upperHeight+1)...)
+	toKey = binary.BigEndian.AppendUint32(toKey, uint32(upperHeight)+1)
 	toKey = append(toKey, []byte(tagKeySeparator)...)
 
 	// already have correct range
@@ -696,18 +696,11 @@ func keyForEvent(key string, value []byte, result *abci.TxResult, eventSeq int64
 	))
 }
 
-func heightToBytes(height int64) []byte {
-	heightBytes := make([]byte, 4)
-	binary.BigEndian.PutUint32(heightBytes, uint32(height))
-	return heightBytes
-}
-
 func keyForHeight(result *abci.TxResult) []byte {
 	keyBytes := []byte(types.TxHeightKey)
 	keyBytes = append(keyBytes, []byte(tagKeySeparator)...)
-	keyBytes = append(keyBytes, heightToBytes(result.Height)...)
-	keyBytes = append(keyBytes, []byte(tagKeySeparator)...)
-	key := fmt.Sprintf("%d/%d%s",
+	keyBytes = binary.BigEndian.AppendUint32(keyBytes, uint32(result.Height))
+	key := fmt.Sprintf("/%d/%d%s",
 		result.Height,
 		result.Index,
 		// Added to facilitate having the eventSeq in event keys
