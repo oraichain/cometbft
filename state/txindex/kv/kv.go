@@ -267,7 +267,7 @@ func (txi *TxIndex) Search(ctx context.Context, q *query.Query) ([]*abci.TxResul
 				continue
 			}
 			if !hashesInitialized {
-				filteredHashes = txi.matchRange(ctx, qr, startKey(qr.Key), filteredHashes, true, heightInfo)
+				filteredHashes = txi.matchRange(ctx, qr, filteredHashes, true, heightInfo)
 				hashesInitialized = true
 
 				// Ignore any remaining conditions if the first condition resulted
@@ -276,7 +276,7 @@ func (txi *TxIndex) Search(ctx context.Context, q *query.Query) ([]*abci.TxResul
 					break
 				}
 			} else {
-				filteredHashes = txi.matchRange(ctx, qr, startKey(qr.Key), filteredHashes, false, heightInfo)
+				filteredHashes = txi.matchRange(ctx, qr, filteredHashes, false, heightInfo)
 			}
 		}
 	}
@@ -525,7 +525,6 @@ REMOVE_LOOP:
 func (txi *TxIndex) matchRange(
 	ctx context.Context,
 	qr indexer.QueryRange,
-	startKey []byte,
 	filteredHashes map[string][]byte,
 	firstRun bool,
 	heightInfo HeightInfo,
@@ -536,9 +535,14 @@ func (txi *TxIndex) matchRange(
 		return filteredHashes
 	}
 
+	// call matchRangeHeight to have fastest speed
+	if qr.Key == types.TxHeightKey {
+		return txi.matchRangeHeight(ctx, qr, filteredHashes, firstRun, heightInfo)
+	}
+
 	tmpHashes := make(map[string][]byte)
 
-	it, err := dbm.IteratePrefix(txi.store, startKey)
+	it, err := dbm.IteratePrefix(txi.store, startKey(qr.Key))
 	if err != nil {
 		panic(err)
 	}
@@ -641,6 +645,134 @@ REMOVE_LOOP:
 	return filteredHashes
 }
 
+// matchRangeHeight returns all matching txs by hash that meet a given queryRange and
+// start key. An already filtered result (filteredHashes) is provided such that
+// any non-intersecting matches are removed.
+//
+// NOTE: filteredHashes may be empty if no previous condition has matched.
+
+const blockToSearch = 5000
+
+func (txi *TxIndex) matchRangeHeight(
+	ctx context.Context,
+	qr indexer.QueryRange,
+	filteredHashes map[string][]byte,
+	firstRun bool,
+	heightInfo HeightInfo,
+) map[string][]byte {
+
+	lowerBound, lowerOk := qr.LowerBoundValue().(*big.Int)
+	upperBound, upperOk := qr.UpperBoundValue().(*big.Int)
+	if !lowerOk && !upperOk {
+		return filteredHashes
+	}
+	// include =
+	rangeBound := big.NewInt(blockToSearch - 1)
+	if lowerBound == nil {
+		lowerBound = new(big.Int).Sub(upperBound, rangeBound)
+	} else if upperBound == nil {
+		upperBound = new(big.Int).Add(lowerBound, rangeBound)
+	}
+
+	lowerHeight := lowerBound.Int64()
+	upperHeight := upperBound.Int64() + 1
+
+	// when search with upperHeight < blockToSearch
+	if lowerHeight < 1 {
+		lowerHeight = 1
+	}
+
+	// upper >= lower and upperHeight-lowerHeight <= blockToSearch
+	if lowerHeight > upperHeight || upperHeight-lowerHeight > blockToSearch {
+		return filteredHashes
+	}
+
+	tmpHashes := make(map[string][]byte)
+	startKeyBz := []byte(qr.Key)
+	fromKey := startKeyWithHeight(startKeyBz, lowerHeight)
+	toKey := startKeyWithHeight(startKeyBz, upperHeight)
+
+	// already have correct range
+	it, err := txi.store.Iterator(fromKey, toKey)
+	if err != nil {
+		panic(err)
+	}
+	defer it.Close()
+
+LOOP:
+	for ; it.Valid(); it.Next() {
+
+		if !isTagKey(it.Key()) {
+			continue
+		}
+
+		if qr.Key != types.TxHeightKey {
+			keyHeight, err := extractHeightFromKey(it.Key())
+			if err != nil {
+				txi.log.Error("failure to parse height from key:", err)
+				continue LOOP
+			}
+			withinBounds, err := checkHeightConditions(heightInfo, keyHeight)
+			if err != nil {
+				txi.log.Error("failure checking for height bounds:", err)
+				continue
+			}
+			if !withinBounds {
+				continue
+			}
+		}
+
+		txi.setTmpHashes(tmpHashes, it)
+
+		// XXX: passing time in a ABCI Events is not yet implemented
+		// case time.Time:
+		// 	v := strconv.ParseInt(extractValueFromKey(it.Key()), 10, 64)
+		// 	if v == r.upperBound {
+		// 		break
+		// 	}
+
+		// Potentially exit early.
+		select {
+		case <-ctx.Done():
+			break LOOP
+		default:
+		}
+	}
+	if err := it.Error(); err != nil {
+		panic(err)
+	}
+
+	if len(tmpHashes) == 0 || firstRun {
+		// Either:
+		//
+		// 1. Regardless if a previous match was attempted, which may have had
+		// results, but no match was found for the current condition, then we
+		// return no matches (assuming AND operand).
+		//
+		// 2. A previous match was not attempted, so we return all results.
+		return tmpHashes
+	}
+
+REMOVE_LOOP:
+	// Remove/reduce matches in filteredHashes that were not found in this
+	// match (tmpHashes).
+	for k, v := range filteredHashes {
+		tmpHash := tmpHashes[k]
+		if tmpHash == nil || !bytes.Equal(tmpHashes[k], v) {
+			delete(filteredHashes, k)
+
+			// Potentially exit early.
+			select {
+			case <-ctx.Done():
+				break REMOVE_LOOP
+			default:
+			}
+		}
+	}
+
+	return filteredHashes
+}
+
 // Keys
 
 func isTagKey(key []byte) bool {
@@ -693,21 +825,40 @@ func keyForEvent(key string, value string, result *abci.TxResult, eventSeq int64
 	))
 }
 
+func joinBytes(s ...[]byte) []byte {
+	n := 0
+	for _, v := range s {
+		n += len(v)
+	}
+
+	b, i := make([]byte, n), 0
+	for _, v := range s {
+		i += copy(b[i:], v)
+	}
+	return b
+}
+
 func keyForHeight(result *abci.TxResult) []byte {
-	return []byte(fmt.Sprintf("%s/%d/%d/%d%s",
-		types.TxHeightKey,
-		result.Height,
-		result.Height,
-		result.Index,
-		// Added to facilitate having the eventSeq in event keys
-		// Otherwise queries break expecting 5 entries
-		eventSeqSeparator+"0",
-	))
+	keyBytes := joinBytes([]byte(types.TxHeightKey), []byte(tagKeySeparator),
+		[]byte{byte(result.Height >> 24), byte(result.Height >> 16), byte(result.Height >> 8), byte(result.Height)},
+		[]byte(fmt.Sprintf("/%d/%d%s",
+			result.Height,
+			result.Index,
+			// Added to facilitate having the eventSeq in event keys
+			// Otherwise queries break expecting 5 entries
+			eventSeqSeparator+"0",
+		)),
+	)
+	return keyBytes
+}
+
+func startKeyWithHeight(key []byte, height int64) []byte {
+	return joinBytes(key, []byte(tagKeySeparator), []byte{byte(height >> 24), byte(height >> 16), byte(height >> 8), byte(height)}, []byte(tagKeySeparator))
 }
 
 func startKeyForCondition(c syntax.Condition, height int64) []byte {
 	if height > 0 {
-		return startKey(c.Tag, c.Arg.Value(), height)
+		return startKeyWithHeight([]byte(c.Tag), height)
 	}
 	return startKey(c.Tag, c.Arg.Value())
 }

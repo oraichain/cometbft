@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	dbm "github.com/cometbft/cometbft-db"
 
@@ -15,6 +16,7 @@ import (
 )
 
 func BenchmarkTxSearch(b *testing.B) {
+
 	dbDir, err := os.MkdirTemp("", "benchmark_tx_search_test")
 	if err != nil {
 		b.Errorf("failed to create temporary directory: %s", err)
@@ -71,4 +73,57 @@ func BenchmarkTxSearch(b *testing.B) {
 			b.Errorf("failed to query for txs: %s", err)
 		}
 	}
+}
+
+func TestBenchmarkTxSearch(b *testing.T) {
+
+	var err error
+	db := dbm.NewMemDB()
+
+	indexer := NewTxIndex(db)
+
+	for i := 0; i < 200; i++ {
+		events := []abci.Event{
+			{
+				Type: "transfer",
+				Attributes: []abci.EventAttribute{
+					{Key: "address", Value: fmt.Sprintf("address_%d", i%100), Index: true},
+				},
+			},
+		}
+
+		txBz := make([]byte, 8)
+		if _, err := rand.Read(txBz); err != nil {
+			b.Errorf("failed produce random bytes: %s", err)
+		}
+
+		txResult := &abci.TxResult{
+			Height: int64(i),
+			Index:  0,
+			Tx:     types.Tx(string(txBz)),
+			Result: abci.ExecTxResult{
+				Data:   []byte{0},
+				Code:   abci.CodeTypeOK,
+				Log:    "",
+				Events: events,
+			},
+		}
+
+		if err := indexer.Index(txResult); err != nil {
+			b.Errorf("failed to index tx: %s", err)
+		}
+	}
+
+	txQuery := query.MustCompile("tx.height <= 110 AND tx.height >= 100")
+
+	ctx := context.Background()
+	var ret []*abci.TxResult
+	start := time.Now().UnixMilli()
+
+	if ret, err = indexer.Search(ctx, txQuery); err != nil {
+		b.Errorf("failed to query for txs: %s", err)
+	}
+
+	b.Logf("found %v, take %d ms", len(ret), time.Now().UnixMilli()-start)
+
 }
