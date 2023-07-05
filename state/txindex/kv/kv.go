@@ -568,6 +568,8 @@ func (txi *TxIndex) matchRange(
 	}
 	defer it.Close()
 
+	fmt.Printf("%v %v\n", fromKey, toKey)
+
 LOOP:
 	for ; it.Valid(); it.Next() {
 
@@ -683,7 +685,7 @@ func keyForEvent(key string, value []byte, result *abci.TxResult, eventSeq int64
 }
 
 func heightToBytes(height int64) []byte {
-	heightBytes := make([]byte, 8)
+	heightBytes := make([]byte, 4)
 	binary.BigEndian.PutUint32(heightBytes, uint32(height))
 	return heightBytes
 }
