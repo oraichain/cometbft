@@ -519,6 +519,8 @@ func (txi *TxIndex) match(
 	return filteredHashes
 }
 
+const blockToSearch = 5000
+
 // matchRange returns all matching txs by hash that meet a given queryRange and
 // start key. An already filtered result (filteredHashes) is provided such that
 // any non-intersecting matches are removed.
@@ -539,27 +541,28 @@ func (txi *TxIndex) matchRange(
 		return filteredHashes
 	}
 
-	var lowerBound, upperBound int64
-
-	if _, ok := qr.AnyBound().(*big.Int); ok {
-
-		lowerBound = qr.LowerBoundValue().(*big.Int).Int64()
-		upperBound = qr.UpperBoundValue().(*big.Int).Int64()
-		// TODO: range > 5000 throw error ?
-		if upperBound-lowerBound > 5000 {
-			return filteredHashes
-		}
-
-	} else {
+	lowerBound := qr.LowerBoundValue().(*big.Int)
+	upperBound := qr.UpperBoundValue().(*big.Int)
+	if lowerBound == nil && upperBound == nil {
+		return filteredHashes
+	}
+	rangeBound := big.NewInt(blockToSearch)
+	if lowerBound == nil {
+		lowerBound = new(big.Int).Sub(upperBound, rangeBound)
+	} else if upperBound == nil {
+		upperBound = new(big.Int).Add(lowerBound, rangeBound)
+	}
+	// TODO: range > 5000 throw error ?
+	if lowerBound.Cmp(upperBound) == 1 || new(big.Int).Sub(upperBound, lowerBound).Cmp(rangeBound) == 1 {
 		return filteredHashes
 	}
 
 	tmpHashes := make(map[string][]byte)
 	fromKey := append([]byte{}, startKey...)
-	fromKey = append(fromKey, heightToBytes(lowerBound)...)
+	fromKey = append(fromKey, heightToBytes(lowerBound.Int64())...)
 	fromKey = append(fromKey, []byte(tagKeySeparator)...)
 	toKey := append([]byte{}, startKey...)
-	toKey = append(toKey, heightToBytes(upperBound+1)...)
+	toKey = append(toKey, heightToBytes(upperBound.Int64()+1)...)
 	toKey = append(toKey, []byte(tagKeySeparator)...)
 	// already have correct range
 	it, err := txi.store.Iterator(fromKey, toKey)
