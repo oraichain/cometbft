@@ -3,7 +3,6 @@ package kv
 import (
 	"bytes"
 	"context"
-	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"math/big"
@@ -568,12 +567,9 @@ func (txi *TxIndex) matchRange(
 	}
 
 	tmpHashes := make(map[string][]byte)
-	fromKey := append([]byte{}, startKey...)
-	fromKey = binary.BigEndian.AppendUint32(fromKey, uint32(lowerHeight))
-	fromKey = append(fromKey, []byte(tagKeySeparator)...)
-	toKey := append([]byte{}, startKey...)
-	toKey = binary.BigEndian.AppendUint32(toKey, uint32(upperHeight)+1)
-	toKey = append(toKey, []byte(tagKeySeparator)...)
+	sizeBytes := len(startKey) + 4 + len(tagKeySeparator)
+	fromKey := joinSizeBytes(sizeBytes, startKey, []byte{byte(lowerHeight >> 24), byte(lowerHeight >> 16), byte(lowerHeight >> 8), byte(lowerHeight)}, []byte(tagKeySeparator))
+	toKey := joinSizeBytes(sizeBytes, startKey, []byte{byte(upperHeight >> 24), byte(upperHeight >> 16), byte(upperHeight >> 8), byte(upperHeight)}, []byte(tagKeySeparator))
 
 	// already have correct range
 	it, err := txi.store.Iterator(fromKey, toKey)
@@ -696,18 +692,34 @@ func keyForEvent(key string, value []byte, result *abci.TxResult, eventSeq int64
 	))
 }
 
+func joinBytes(s ...[]byte) []byte {
+	n := 0
+	for _, v := range s {
+		n += len(v)
+	}
+
+	return joinSizeBytes(n, s...)
+}
+
+func joinSizeBytes(n int, s ...[]byte) []byte {
+	b, i := make([]byte, n), 0
+	for _, v := range s {
+		i += copy(b[i:], v)
+	}
+	return b
+}
+
 func keyForHeight(result *abci.TxResult) []byte {
-	keyBytes := []byte(types.TxHeightKey)
-	keyBytes = append(keyBytes, []byte(tagKeySeparator)...)
-	keyBytes = binary.BigEndian.AppendUint32(keyBytes, uint32(result.Height))
-	key := fmt.Sprintf("/%d/%d%s",
-		result.Height,
-		result.Index,
-		// Added to facilitate having the eventSeq in event keys
-		// Otherwise queries break expecting 5 entries
-		eventSeqSeparator+"0",
+	keyBytes := joinBytes([]byte(types.TxHeightKey), []byte(tagKeySeparator),
+		[]byte{byte(result.Height >> 24), byte(result.Height >> 16), byte(result.Height >> 8), byte(result.Height)},
+		[]byte(fmt.Sprintf("/%d/%d%s",
+			result.Height,
+			result.Index,
+			// Added to facilitate having the eventSeq in event keys
+			// Otherwise queries break expecting 5 entries
+			eventSeqSeparator+"0",
+		)),
 	)
-	keyBytes = append(keyBytes, []byte(key)...)
 	return keyBytes
 }
 
