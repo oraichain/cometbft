@@ -118,7 +118,7 @@ func TestBenchmarkTxSearch(b *testing.T) {
 		}
 	}
 
-	txQuery := query.MustParse("tx.height <= 110")
+	txQuery := query.MustParse("tx.height <= 110 AND tx.height >= 110")
 
 	ctx := context.Background()
 	var ret []*abci.TxResult

@@ -546,23 +546,33 @@ func (txi *TxIndex) matchRange(
 	if !lowerOk && !upperOk {
 		return filteredHashes
 	}
-	rangeBound := big.NewInt(blockToSearch)
+	// include =
+	rangeBound := big.NewInt(blockToSearch - 1)
 	if lowerBound == nil {
 		lowerBound = new(big.Int).Sub(upperBound, rangeBound)
 	} else if upperBound == nil {
 		upperBound = new(big.Int).Add(lowerBound, rangeBound)
 	}
-	// TODO: range > 5000 throw error ?
-	if lowerBound.Cmp(upperBound) == 1 || new(big.Int).Sub(upperBound, lowerBound).Cmp(rangeBound) == 1 {
+
+	lowerHeight := lowerBound.Int64()
+	upperHeight := upperBound.Int64()
+
+	// when search with upperHeight < blockToSearch
+	if lowerHeight < 1 {
+		lowerHeight = 1
+	}
+
+	// upper >= lower and upperHeight-lowerHeight <= blockToSearch
+	if lowerHeight > upperHeight || upperHeight-lowerHeight > blockToSearch {
 		return filteredHashes
 	}
 
 	tmpHashes := make(map[string][]byte)
 	fromKey := append([]byte{}, startKey...)
-	fromKey = append(fromKey, heightToBytes(lowerBound.Int64())...)
+	fromKey = append(fromKey, heightToBytes(lowerHeight)...)
 	fromKey = append(fromKey, []byte(tagKeySeparator)...)
 	toKey := append([]byte{}, startKey...)
-	toKey = append(toKey, heightToBytes(upperBound.Int64()+1)...)
+	toKey = append(toKey, heightToBytes(upperHeight+1)...)
 	toKey = append(toKey, []byte(tagKeySeparator)...)
 	// already have correct range
 	it, err := txi.store.Iterator(fromKey, toKey)
