@@ -91,7 +91,7 @@ func filterMinMax(base, height, min, max, limit int64) (int64, int64, error) {
 
 	// limit min to within `limit` of max
 	// so the total number of blocks returned will be `limit`
-	min = cmtmath.MaxInt64(min, max-limit+1)
+	max = cmtmath.MinInt64(max, min+limit)
 
 	if min > max {
 		return min, max, fmt.Errorf("min height %d can't be greater than max height %d", min, max)
