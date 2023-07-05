@@ -295,7 +295,7 @@ func TestAppCalls(t *testing.T) {
 		}
 
 		// check blockchain info, now that we know there is info
-		info, err := c.BlockchainInfo(context.Background(), apph, apph)
+		info, err := c.BlockchainInfo(context.Background(), apph, apph, 20)
 		require.NoError(err)
 		assert.True(info.LastHeight >= apph)
 		if assert.Equal(1, len(info.BlockMetas)) {
@@ -327,7 +327,7 @@ func TestAppCalls(t *testing.T) {
 
 		// XXX Test proof
 		// check blockchain info, now that we know there is info
-		info, err = c.BlockchainInfo(context.Background(), txh, txh)
+		info, err = c.BlockchainInfo(context.Background(), txh, txh, 20)
 		require.NoError(err)
 		assert.Equal(1, len(info.BlockResults))
 		for _, data := range info.BlockResults {

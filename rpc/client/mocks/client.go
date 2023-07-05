@@ -183,13 +183,13 @@ func (_m *Client) BlockSearch(ctx context.Context, query string, page *int, perP
 	return r0, r1
 }
 
-// BlockchainInfo provides a mock function with given fields: ctx, minHeight, maxHeight
-func (_m *Client) BlockchainInfo(ctx context.Context, minHeight int64, maxHeight int64) (*coretypes.ResultBlockchainInfo, error) {
-	ret := _m.Called(ctx, minHeight, maxHeight)
+// BlockchainInfo provides a mock function with given fields: ctx, minHeight, maxHeight & limit
+func (_m *Client) BlockchainInfo(ctx context.Context, minHeight int64, maxHeight, limit int64) (*coretypes.ResultBlockchainInfo, error) {
+	ret := _m.Called(ctx, minHeight, maxHeight, limit)
 
 	var r0 *coretypes.ResultBlockchainInfo
-	if rf, ok := ret.Get(0).(func(context.Context, int64, int64) *coretypes.ResultBlockchainInfo); ok {
-		r0 = rf(ctx, minHeight, maxHeight)
+	if rf, ok := ret.Get(0).(func(context.Context, int64, int64, int64) *coretypes.ResultBlockchainInfo); ok {
+		r0 = rf(ctx, minHeight, maxHeight, limit)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*coretypes.ResultBlockchainInfo)
@@ -197,8 +197,8 @@ func (_m *Client) BlockchainInfo(ctx context.Context, minHeight int64, maxHeight
 	}
 
 	var r1 error
-	if rf, ok := ret.Get(1).(func(context.Context, int64, int64) error); ok {
-		r1 = rf(ctx, minHeight, maxHeight)
+	if rf, ok := ret.Get(1).(func(context.Context, int64, int64, int64) error); ok {
+		r1 = rf(ctx, minHeight, maxHeight, limit)
 	} else {
 		r1 = ret.Error(1)
 	}

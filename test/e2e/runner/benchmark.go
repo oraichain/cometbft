@@ -112,7 +112,7 @@ func fetchBlockChainSample(testnet *e2e.Testnet, benchmarkLength int64) ([]*type
 	// Fetch blocks
 	for from < to {
 		// fetch the blockchain metas. Currently we can only fetch 20 at a time
-		resp, err := c.BlockchainInfo(ctx, from, min(from+19, to))
+		resp, err := c.BlockchainInfo(ctx, from, min(from+19, to), 20)
 		if err != nil {
 			return nil, err
 		}

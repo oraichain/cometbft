@@ -13,6 +13,8 @@ import (
 	"github.com/tendermint/tendermint/types"
 )
 
+const MAX_BLOCKCHAIN_INFO_LIMIT = 5000
+
 // BlockchainInfo gets block headers for minHeight <= height <= maxHeight.
 //
 // If maxHeight does not yet exist, blocks up to the current height will be
@@ -23,9 +25,12 @@ import (
 // order (highest first).
 //
 // More: https://docs.cometbft.com/v0.34/rpc/#/Info/blockchain
-func BlockchainInfo(ctx *rpctypes.Context, minHeight, maxHeight int64) (*ctypes.ResultBlockchainInfo, error) {
+func BlockchainInfo(ctx *rpctypes.Context, minHeight, maxHeight, limit int64) (*ctypes.ResultBlockchainInfo, error) {
 	// maximum 20 block metas
-	const limit int64 = 20
+	if limit > MAX_BLOCKCHAIN_INFO_LIMIT {
+		limit = MAX_BLOCKCHAIN_INFO_LIMIT
+	}
+
 	var err error
 	minHeight, maxHeight, err = filterMinMax(
 		env.BlockStore.Base(),
@@ -39,14 +44,15 @@ func BlockchainInfo(ctx *rpctypes.Context, minHeight, maxHeight int64) (*ctypes.
 	env.Logger.Debug("BlockchainInfoHandler", "maxHeight", maxHeight, "minHeight", minHeight)
 
 	blockMetas := []*types.BlockMeta{}
-	blockResults := []*ctypes.ResultBlockResults{}
+	blockResults := []*ctypes.MinimalBlockResults{}
 	for height := maxHeight; height >= minHeight; height-- {
 		blockMeta := env.BlockStore.LoadBlockMeta(height)
 		blockResult, err := BlockResults(ctx, &height)
 		if err != nil {
-			continue
+			return nil, err
 		}
-		blockResults = append(blockResults, blockResult)
+		minimalBlockResult := ctypes.MinimalBlockResults{Height: blockResult.Height, TxsResults: blockResult.TxsResults}
+		blockResults = append(blockResults, &minimalBlockResult)
 		blockMetas = append(blockMetas, blockMeta)
 	}
 

@@ -21,7 +21,7 @@ func RPCRoutes(c *lrpc.Client) map[string]*rpcserver.RPCFunc {
 		"health":               rpcserver.NewRPCFunc(makeHealthFunc(c), ""),
 		"status":               rpcserver.NewRPCFunc(makeStatusFunc(c), ""),
 		"net_info":             rpcserver.NewRPCFunc(makeNetInfoFunc(c), ""),
-		"blockchain":           rpcserver.NewRPCFunc(makeBlockchainInfoFunc(c), "minHeight,maxHeight", rpcserver.Cacheable()),
+		"blockchain":           rpcserver.NewRPCFunc(makeBlockchainInfoFunc(c), "minHeight,maxHeight,limit", rpcserver.Cacheable()),
 		"genesis":              rpcserver.NewRPCFunc(makeGenesisFunc(c), "", rpcserver.Cacheable()),
 		"genesis_chunked":      rpcserver.NewRPCFunc(makeGenesisChunkedFunc(c), "", rpcserver.Cacheable()),
 		"block":                rpcserver.NewRPCFunc(makeBlockFunc(c), "height", rpcserver.Cacheable("height")),
@@ -77,11 +77,11 @@ func makeNetInfoFunc(c *lrpc.Client) rpcNetInfoFunc {
 	}
 }
 
-type rpcBlockchainInfoFunc func(ctx *rpctypes.Context, minHeight, maxHeight int64) (*ctypes.ResultBlockchainInfo, error)
+type rpcBlockchainInfoFunc func(ctx *rpctypes.Context, minHeight, maxHeight, limit int64) (*ctypes.ResultBlockchainInfo, error)
 
 func makeBlockchainInfoFunc(c *lrpc.Client) rpcBlockchainInfoFunc {
-	return func(ctx *rpctypes.Context, minHeight, maxHeight int64) (*ctypes.ResultBlockchainInfo, error) {
-		return c.BlockchainInfo(ctx.Context(), minHeight, maxHeight)
+	return func(ctx *rpctypes.Context, minHeight, maxHeight, limit int64) (*ctypes.ResultBlockchainInfo, error) {
+		return c.BlockchainInfo(ctx.Context(), minHeight, maxHeight, limit)
 	}
 }
 

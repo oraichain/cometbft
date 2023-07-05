@@ -149,8 +149,8 @@ func (c Client) DialPeers(
 	return core.UnsafeDialPeers(&rpctypes.Context{}, peers, persistent, unconditional, private)
 }
 
-func (c Client) BlockchainInfo(ctx context.Context, minHeight, maxHeight int64) (*ctypes.ResultBlockchainInfo, error) {
-	return core.BlockchainInfo(&rpctypes.Context{}, minHeight, maxHeight)
+func (c Client) BlockchainInfo(ctx context.Context, minHeight, maxHeight, limit int64) (*ctypes.ResultBlockchainInfo, error) {
+	return core.BlockchainInfo(&rpctypes.Context{}, minHeight, maxHeight, limit)
 }
 
 func (c Client) Genesis(ctx context.Context) (*ctypes.ResultGenesis, error) {

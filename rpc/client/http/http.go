@@ -373,11 +373,11 @@ func (c *baseRPCClient) Health(ctx context.Context) (*ctypes.ResultHealth, error
 func (c *baseRPCClient) BlockchainInfo(
 	ctx context.Context,
 	minHeight,
-	maxHeight int64,
+	maxHeight, limit int64,
 ) (*ctypes.ResultBlockchainInfo, error) {
 	result := new(ctypes.ResultBlockchainInfo)
 	_, err := c.caller.Call(ctx, "blockchain",
-		map[string]interface{}{"minHeight": minHeight, "maxHeight": maxHeight},
+		map[string]interface{}{"minHeight": minHeight, "maxHeight": maxHeight, "limit": limit},
 		result)
 	if err != nil {
 		return nil, err

@@ -14,9 +14,9 @@ import (
 
 // List of blocks
 type ResultBlockchainInfo struct {
-	LastHeight   int64                 `json:"last_height"`
-	BlockMetas   []*types.BlockMeta    `json:"block_metas"`
-	BlockResults []*ResultBlockResults `json:"block_results"`
+	LastHeight   int64                  `json:"last_height"`
+	BlockMetas   []*types.BlockMeta     `json:"block_metas"`
+	BlockResults []*MinimalBlockResults `json:"block_results"`
 }
 
 // Genesis file
@@ -54,6 +54,12 @@ type ResultBlockResults struct {
 	EndBlockEvents        []abci.Event              `json:"end_block_events"`
 	ValidatorUpdates      []abci.ValidatorUpdate    `json:"validator_updates"`
 	ConsensusParamUpdates *abci.ConsensusParams     `json:"consensus_param_updates"`
+}
+
+// ABCI results from a block
+type MinimalBlockResults struct {
+	Height     int64                     `json:"height"`
+	TxsResults []*abci.ResponseDeliverTx `json:"txs_results"`
 }
 
 // NewResultCommit is a helper to initialize the ResultCommit with
