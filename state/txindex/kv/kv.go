@@ -581,8 +581,6 @@ func (txi *TxIndex) matchRange(
 	}
 	defer it.Close()
 
-	fmt.Printf("%v %v\n", fromKey, toKey)
-
 LOOP:
 	for ; it.Valid(); it.Next() {
 
