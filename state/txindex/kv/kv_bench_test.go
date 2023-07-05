@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"testing"
-	"time"
 
 	dbm "github.com/cometbft/cometbft-db"
 
@@ -75,59 +74,64 @@ func BenchmarkTxSearch(b *testing.B) {
 	}
 }
 
-func TestBenchmarkTxSearch(b *testing.T) {
+func BenchmarkNewTxSearch(b *testing.B) {
 
-	dbDir := "leveldb"
-
-	db, err := dbm.NewDB("benchmark_tx_search_test", dbm.GoLevelDBBackend, dbDir)
-	if err != nil {
-		b.Errorf("failed to create database: %s", err)
+	dbtypes := []dbm.BackendType{
+		dbm.GoLevelDBBackend,
+		dbm.BoltDBBackend,
 	}
+	for _, dbtype := range dbtypes {
 
-	indexer := NewTxIndex(db)
-
-	for i := 0; i < 200; i++ {
-		events := []abci.Event{
-			{
-				Type: "transfer",
-				Attributes: []abci.EventAttribute{
-					{Key: []byte("address"), Value: []byte(fmt.Sprintf("address_%d", i%100)), Index: true},
-				},
-			},
+		db, err := dbm.NewDB("benchmark_tx_search_test", dbtype, string(dbtype))
+		if err != nil {
+			b.Errorf("failed to create database: %s", err)
 		}
+		indexer := NewTxIndex(db)
+		ctx := context.Background()
 
-		txBz := make([]byte, 8)
-		if _, err := rand.Read(txBz); err != nil {
-			b.Errorf("failed produce random bytes: %s", err)
-		}
+		// for i := 0; i < 5000; i++ {
+		// 	events := []abci.Event{
+		// 		{
+		// 			Type: "transfer",
+		// 			Attributes: []abci.EventAttribute{
+		// 				{Key: []byte("address"), Value: []byte(fmt.Sprintf("address_%d", i%100)), Index: true},
+		// 			},
+		// 		},
+		// 	}
 
-		txResult := &abci.TxResult{
-			Height: int64(i),
-			Index:  0,
-			Tx:     types.Tx(string(txBz)),
-			Result: abci.ResponseDeliverTx{
-				Data:   []byte{0},
-				Code:   abci.CodeTypeOK,
-				Log:    "",
-				Events: events,
-			},
-		}
+		// 	txBz := make([]byte, 8)
+		// 	if _, err := rand.Read(txBz); err != nil {
+		// 		b.Errorf("failed produce random bytes: %s", err)
+		// 	}
 
-		if err := indexer.Index(txResult); err != nil {
-			b.Errorf("failed to index tx: %s", err)
-		}
+		// 	txResult := &abci.TxResult{
+		// 		Height: int64(i),
+		// 		Index:  0,
+		// 		Tx:     types.Tx(string(txBz)),
+		// 		Result: abci.ResponseDeliverTx{
+		// 			Data:   []byte{0},
+		// 			Code:   abci.CodeTypeOK,
+		// 			Log:    "",
+		// 			Events: events,
+		// 		},
+		// 	}
+		// 	if err := indexer.Index(txResult); err != nil {
+		// 		b.Errorf("failed to index tx: %s", err)
+		// 	}
+		// }
+
+		txQuery := query.MustParse("tx.height <= 110 AND tx.height >= 100")
+
+		// benchmark
+		b.Run(fmt.Sprintf("database:%s", dbtype), func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				if _, err = indexer.Search(ctx, txQuery); err != nil {
+					b.Errorf("failed to query for txs: %s", err)
+				}
+			}
+
+		})
+
 	}
-
-	txQuery := query.MustParse("tx.height <= 110 AND tx.height >= 110")
-
-	ctx := context.Background()
-	var ret []*abci.TxResult
-	start := time.Now().UnixMilli()
-
-	if ret, err = indexer.Search(ctx, txQuery); err != nil {
-		b.Errorf("failed to query for txs: %s", err)
-	}
-
-	b.Logf("found %v, take %d ms", len(ret), time.Now().UnixMilli()-start)
 
 }
