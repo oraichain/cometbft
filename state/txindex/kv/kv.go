@@ -541,9 +541,9 @@ func (txi *TxIndex) matchRange(
 		return filteredHashes
 	}
 
-	lowerBound := qr.LowerBoundValue().(*big.Int)
-	upperBound := qr.UpperBoundValue().(*big.Int)
-	if lowerBound == nil && upperBound == nil {
+	lowerBound, lowerOk := qr.LowerBoundValue().(*big.Int)
+	upperBound, upperOk := qr.UpperBoundValue().(*big.Int)
+	if !lowerOk && !upperOk {
 		return filteredHashes
 	}
 	rangeBound := big.NewInt(blockToSearch)
