@@ -316,13 +316,14 @@ func (txi *TxIndex) Search(ctx context.Context, q *query.Query) ([]*abci.TxResul
 	results := make([]*abci.TxResult, 0, len(filteredHashes))
 	resultMap := make(map[string]struct{})
 	for _, h := range filteredHashes {
-		res, err := txi.Get(h)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get Tx{%X}: %w", h, err)
-		}
+
 		hashString := string(h)
 		if _, ok := resultMap[hashString]; !ok {
 			resultMap[hashString] = struct{}{}
+			res, err := txi.Get(h)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get Tx{%X}: %w", h, err)
+			}
 			results = append(results, res)
 		}
 		// Potentially exit early.
