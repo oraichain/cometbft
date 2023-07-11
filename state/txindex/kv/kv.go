@@ -700,10 +700,6 @@ func joinBytes(s ...[]byte) []byte {
 		n += len(v)
 	}
 
-	return joinSizeBytes(n, s...)
-}
-
-func joinSizeBytes(n int, s ...[]byte) []byte {
 	b, i := make([]byte, n), 0
 	for _, v := range s {
 		i += copy(b[i:], v)
