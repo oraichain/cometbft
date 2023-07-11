@@ -555,7 +555,7 @@ func (txi *TxIndex) matchRange(
 	}
 
 	lowerHeight := lowerBound.Int64()
-	upperHeight := upperBound.Int64()
+	upperHeight := upperBound.Int64() + 1
 
 	// when search with upperHeight < blockToSearch
 	if lowerHeight < 1 {
