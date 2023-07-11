@@ -536,11 +536,114 @@ func (txi *TxIndex) matchRange(
 	matchEvents bool,
 	heightInfo HeightInfo,
 ) map[string][]byte {
+
 	// A previous match was attempted but resulted in no matches, so we return
 	// no matches (assuming AND operand).
 	if !firstRun && len(filteredHashes) == 0 {
 		return filteredHashes
 	}
+
+	// call matchRangeHeight to have fastest speed
+	if qr.Key == types.TxHeightKey {
+		return txi.matchRangeHeight(ctx, qr, filteredHashes, firstRun, matchEvents, heightInfo)
+	}
+
+	startKey := startKey(qr.Key)
+
+	tmpHashes := make(map[string][]byte)
+
+	it, err := dbm.IteratePrefix(txi.store, startKey)
+	if err != nil {
+		panic(err)
+	}
+	defer it.Close()
+
+LOOP:
+	for ; it.Valid(); it.Next() {
+		if !isTagKey(it.Key()) {
+			continue
+		}
+
+		if _, ok := qr.AnyBound().(*big.Int); ok {
+			v := new(big.Int)
+			eventValue := extractValueFromKey(it.Key())
+			v, ok := v.SetString(eventValue, 10)
+			if !ok {
+				continue LOOP
+			}
+
+			if matchEvents && qr.Key != types.TxHeightKey {
+				keyHeight, err := extractHeightFromKey(it.Key())
+				if err != nil || !checkHeightConditions(heightInfo, keyHeight) {
+					continue LOOP
+				}
+			}
+			if checkBounds(qr, v) {
+				txi.setTmpHashes(tmpHashes, it, matchEvents)
+			}
+
+			// XXX: passing time in a ABCI Events is not yet implemented
+			// case time.Time:
+			// 	v := strconv.ParseInt(extractValueFromKey(it.Key()), 10, 64)
+			// 	if v == r.upperBound {
+			// 		break
+			// 	}
+		}
+
+		// Potentially exit early.
+		select {
+		case <-ctx.Done():
+			break
+		default:
+		}
+	}
+	if err := it.Error(); err != nil {
+		panic(err)
+	}
+
+	if len(tmpHashes) == 0 || firstRun {
+		// Either:
+		//
+		// 1. Regardless if a previous match was attempted, which may have had
+		// results, but no match was found for the current condition, then we
+		// return no matches (assuming AND operand).
+		//
+		// 2. A previous match was not attempted, so we return all results.
+		return tmpHashes
+	}
+
+	// Remove/reduce matches in filteredHashes that were not found in this
+	// match (tmpHashes).
+	for k, v := range filteredHashes {
+		tmpHash := tmpHashes[k]
+		if tmpHash == nil || !bytes.Equal(tmpHashes[k], v) {
+			delete(filteredHashes, k)
+
+			// Potentially exit early.
+			select {
+			case <-ctx.Done():
+				break
+			default:
+			}
+		}
+	}
+
+	return filteredHashes
+}
+
+// matchRange returns all matching txs by hash that meet a given queryRange and
+// start key. An already filtered result (filteredHashes) is provided such that
+// any non-intersecting matches are removed.
+//
+// NOTE: filteredHashes may be empty if no previous condition has matched.
+func (txi *TxIndex) matchRangeHeight(
+	ctx context.Context,
+	qr indexer.QueryRange,
+	filteredHashes map[string][]byte,
+	firstRun bool,
+	matchEvents bool,
+	heightInfo HeightInfo,
+) map[string][]byte {
 
 	lowerBound, lowerOk := qr.LowerBoundValue().(*big.Int)
 	upperBound, upperOk := qr.UpperBoundValue().(*big.Int)
@@ -726,7 +829,7 @@ func startKeyWithHeight(key []byte, height int64) []byte {
 }
 
 func startKeyForCondition(c query.Condition, height int64) []byte {
-	if height > 0 {
+	if c.CompositeKey == types.TxHeightKey {
 		return startKeyWithHeight([]byte(c.CompositeKey), height)
 	}
 	return startKey(c.CompositeKey, c.Operand)
