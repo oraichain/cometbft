@@ -727,11 +727,10 @@ func keyForHeight(result *abci.TxResult) []byte {
 }
 
 func startKeyForCondition(c query.Condition, height int64) []byte {
-	key := startKey(c.CompositeKey, c.Operand)
 	if height > 0 {
-		return joinBytes(key, []byte{byte(height >> 24), byte(height >> 16), byte(height >> 8), byte(height)}, []byte(tagKeySeparator))
+		return joinBytes(startKey(c.CompositeKey), []byte{byte(height >> 24), byte(height >> 16), byte(height >> 8), byte(height)}, []byte(tagKeySeparator))
 	}
-	return key
+	return startKey(c.CompositeKey, c.Operand)
 }
 
 func startKey(fields ...interface{}) []byte {
