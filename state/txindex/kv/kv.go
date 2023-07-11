@@ -302,7 +302,7 @@ func (txi *TxIndex) Search(ctx context.Context, q *query.Query) ([]*abci.TxResul
 		}
 
 		if !hashesInitialized {
-			filteredHashes = txi.match(ctx, c, startKeyForCondition(startKey(c.CompositeKey), heightInfo.height), filteredHashes, true, matchEvents, heightInfo)
+			filteredHashes = txi.match(ctx, c, startKeyForCondition(c, heightInfo.height), filteredHashes, true, matchEvents, heightInfo)
 			hashesInitialized = true
 
 			// Ignore any remaining conditions if the first condition resulted
@@ -311,7 +311,7 @@ func (txi *TxIndex) Search(ctx context.Context, q *query.Query) ([]*abci.TxResul
 				break
 			}
 		} else {
-			filteredHashes = txi.match(ctx, c, startKeyForCondition(startKey(c.CompositeKey), heightInfo.height), filteredHashes, false, matchEvents, heightInfo)
+			filteredHashes = txi.match(ctx, c, startKeyForCondition(c, heightInfo.height), filteredHashes, false, matchEvents, heightInfo)
 		}
 	}
 
@@ -570,8 +570,9 @@ func (txi *TxIndex) matchRange(
 	}
 
 	tmpHashes := make(map[string][]byte)
-	fromKey := startKeyForCondition(startKey, lowerHeight)
-	toKey := startKeyForCondition(startKey, upperHeight)
+	sizeBytes := len(startKey) + 4 + len(tagKeySeparator)
+	fromKey := joinSizeBytes(sizeBytes, startKey, []byte{byte(lowerHeight >> 24), byte(lowerHeight >> 16), byte(lowerHeight >> 8), byte(lowerHeight)}, []byte(tagKeySeparator))
+	toKey := joinSizeBytes(sizeBytes, startKey, []byte{byte(upperHeight >> 24), byte(upperHeight >> 16), byte(upperHeight >> 8), byte(upperHeight)}, []byte(tagKeySeparator))
 
 	// already have correct range
 	it, err := txi.store.Iterator(fromKey, toKey)
@@ -700,6 +701,10 @@ func joinBytes(s ...[]byte) []byte {
 		n += len(v)
 	}
 
+	return joinSizeBytes(n, s...)
+}
+
+func joinSizeBytes(n int, s ...[]byte) []byte {
 	b, i := make([]byte, n), 0
 	for _, v := range s {
 		i += copy(b[i:], v)
@@ -721,8 +726,12 @@ func keyForHeight(result *abci.TxResult) []byte {
 	return keyBytes
 }
 
-func startKeyForCondition(startKey []byte, height int64) []byte {
-	return joinBytes(startKey, []byte{byte(height >> 24), byte(height >> 16), byte(height >> 8), byte(height)}, []byte(tagKeySeparator))
+func startKeyForCondition(c query.Condition, height int64) []byte {
+	key := startKey(c.CompositeKey, c.Operand)
+	if height > 0 {
+		return joinBytes(key, []byte{byte(height >> 24), byte(height >> 16), byte(height >> 8), byte(height)}, []byte(tagKeySeparator))
+	}
+	return key
 }
 
 func startKey(fields ...interface{}) []byte {
