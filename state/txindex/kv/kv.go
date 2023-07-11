@@ -280,7 +280,7 @@ func (txi *TxIndex) Search(ctx context.Context, q *query.Query) ([]*abci.TxResul
 				continue
 			}
 			if !hashesInitialized {
-				filteredHashes = txi.matchRange(ctx, qr, startKey(qr.Key), filteredHashes, true, matchEvents, heightInfo)
+				filteredHashes = txi.matchRange(ctx, qr, filteredHashes, true, matchEvents, heightInfo)
 				hashesInitialized = true
 
 				// Ignore any remaining conditions if the first condition resulted
@@ -289,7 +289,7 @@ func (txi *TxIndex) Search(ctx context.Context, q *query.Query) ([]*abci.TxResul
 					break
 				}
 			} else {
-				filteredHashes = txi.matchRange(ctx, qr, startKey(qr.Key), filteredHashes, false, matchEvents, heightInfo)
+				filteredHashes = txi.matchRange(ctx, qr, filteredHashes, false, matchEvents, heightInfo)
 			}
 
 		}
@@ -302,7 +302,7 @@ func (txi *TxIndex) Search(ctx context.Context, q *query.Query) ([]*abci.TxResul
 		}
 
 		if !hashesInitialized {
-			filteredHashes = txi.match(ctx, c, startKeyForCondition(c, heightInfo.height), filteredHashes, true, matchEvents, heightInfo)
+			filteredHashes = txi.match(ctx, c, filteredHashes, true, matchEvents, heightInfo)
 			hashesInitialized = true
 
 			// Ignore any remaining conditions if the first condition resulted
@@ -311,7 +311,7 @@ func (txi *TxIndex) Search(ctx context.Context, q *query.Query) ([]*abci.TxResul
 				break
 			}
 		} else {
-			filteredHashes = txi.match(ctx, c, startKeyForCondition(c, heightInfo.height), filteredHashes, false, matchEvents, heightInfo)
+			filteredHashes = txi.match(ctx, c, filteredHashes, false, matchEvents, heightInfo)
 		}
 	}
 
@@ -375,7 +375,6 @@ func (txi *TxIndex) setTmpHashes(tmpHeights map[string][]byte, it dbm.Iterator, 
 func (txi *TxIndex) match(
 	ctx context.Context,
 	c query.Condition,
-	startKeyBz []byte,
 	filteredHashes map[string][]byte,
 	firstRun bool,
 	matchEvents bool,
@@ -387,6 +386,7 @@ func (txi *TxIndex) match(
 		return filteredHashes
 	}
 
+	startKeyBz := startKeyForCondition(c, heightInfo.height)
 	tmpHashes := make(map[string][]byte)
 
 	switch {
@@ -531,7 +531,6 @@ const blockToSearch = 5000
 func (txi *TxIndex) matchRange(
 	ctx context.Context,
 	qr indexer.QueryRange,
-	startKey []byte,
 	filteredHashes map[string][]byte,
 	firstRun bool,
 	matchEvents bool,
@@ -570,9 +569,9 @@ func (txi *TxIndex) matchRange(
 	}
 
 	tmpHashes := make(map[string][]byte)
-	sizeBytes := len(startKey) + 4 + len(tagKeySeparator)
-	fromKey := joinSizeBytes(sizeBytes, startKey, []byte{byte(lowerHeight >> 24), byte(lowerHeight >> 16), byte(lowerHeight >> 8), byte(lowerHeight)}, []byte(tagKeySeparator))
-	toKey := joinSizeBytes(sizeBytes, startKey, []byte{byte(upperHeight >> 24), byte(upperHeight >> 16), byte(upperHeight >> 8), byte(upperHeight)}, []byte(tagKeySeparator))
+	startKeyBz := []byte(qr.Key)
+	fromKey := startKeyWithHeight(startKeyBz, lowerHeight)
+	toKey := startKeyWithHeight(startKeyBz, upperHeight)
 
 	// already have correct range
 	it, err := txi.store.Iterator(fromKey, toKey)
@@ -726,9 +725,13 @@ func keyForHeight(result *abci.TxResult) []byte {
 	return keyBytes
 }
 
+func startKeyWithHeight(key []byte, height int64) []byte {
+	return joinBytes(key, []byte(tagKeySeparator), []byte{byte(height >> 24), byte(height >> 16), byte(height >> 8), byte(height)}, []byte(tagKeySeparator))
+}
+
 func startKeyForCondition(c query.Condition, height int64) []byte {
 	if height > 0 {
-		return joinBytes(startKey(c.CompositeKey), []byte{byte(height >> 24), byte(height >> 16), byte(height >> 8), byte(height)}, []byte(tagKeySeparator))
+		return startKeyWithHeight([]byte(c.CompositeKey), height)
 	}
 	return startKey(c.CompositeKey, c.Operand)
 }
