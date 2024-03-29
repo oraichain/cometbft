@@ -2222,7 +2222,7 @@ func (cs *State) voteTime() time.Time {
 	minVoteTime := now
 	// TODO: We should remove next line in case we don't vote for v in case cs.ProposalBlock == nil,
 	// even if cs.LockedBlock != nil. See https://github.com/tendermint/tendermint/tree/v0.34.x/spec/.
-	timeIota := time.Duration(cs.state.ConsensusParams.Block.TimeIotaMs) * time.Millisecond
+	timeIota := time.Millisecond
 	if cs.LockedBlock != nil {
 		// See the BFT time spec
 		// https://github.com/tendermint/tendermint/blob/v0.34.x/spec/consensus/bft-time.md
