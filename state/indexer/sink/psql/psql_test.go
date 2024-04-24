@@ -232,7 +232,7 @@ func TestIndexing(t *testing.T) {
 			Tx:     types.Tx("foo"),
 			Result: abci.ResponseDeliverTx{Code: 0},
 		}
-		err = eventBus.PublishEventTx(types.EventDataTx{TxResult: *txResult1})
+		err = eventBus.PublishEventTx(types.EventDataTx{TxResult: *txResult1, Timestamp: time.Now()})
 		require.NoError(t, err)
 		txResult2 := &abci.TxResult{
 			Height: 1,
@@ -240,7 +240,7 @@ func TestIndexing(t *testing.T) {
 			Tx:     types.Tx("bar"),
 			Result: abci.ResponseDeliverTx{Code: 1},
 		}
-		err = eventBus.PublishEventTx(types.EventDataTx{TxResult: *txResult2})
+		err = eventBus.PublishEventTx(types.EventDataTx{TxResult: *txResult2, Timestamp: time.Now()})
 		require.NoError(t, err)
 
 		time.Sleep(100 * time.Millisecond)

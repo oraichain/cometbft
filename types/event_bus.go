@@ -177,12 +177,12 @@ func (b *EventBus) PublishEventTx(data EventDataTx) error {
 	// no explicit deadline for publishing events
 	ctx := context.Background()
 
-	events := b.validateAndStringifyEvents(data.Result.Events, b.Logger.With("tx", data.Tx))
+	events := b.validateAndStringifyEvents(data.TxResult.Result.Events, b.Logger.With("tx", data.TxResult.Tx))
 
 	// add predefined compositeKeys
 	events[EventTypeKey] = append(events[EventTypeKey], EventTx)
-	events[TxHashKey] = append(events[TxHashKey], fmt.Sprintf("%X", Tx(data.Tx).Hash()))
-	events[TxHeightKey] = append(events[TxHeightKey], fmt.Sprintf("%d", data.Height))
+	events[TxHashKey] = append(events[TxHashKey], fmt.Sprintf("%X", Tx(data.TxResult.Tx).Hash()))
+	events[TxHeightKey] = append(events[TxHeightKey], fmt.Sprintf("%d", data.TxResult.Height))
 
 	return b.pubsub.PublishWithEvents(ctx, data, events)
 }

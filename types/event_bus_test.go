@@ -43,10 +43,10 @@ func TestEventBusPublishEventTx(t *testing.T) {
 	go func() {
 		msg := <-txsSub.Out()
 		edt := msg.Data().(EventDataTx)
-		assert.Equal(t, int64(1), edt.Height)
-		assert.Equal(t, uint32(0), edt.Index)
-		assert.EqualValues(t, tx, edt.Tx)
-		assert.Equal(t, result, edt.Result)
+		assert.Equal(t, int64(1), edt.TxResult.Height)
+		assert.Equal(t, uint32(0), edt.TxResult.Index)
+		assert.EqualValues(t, tx, edt.TxResult.Tx)
+		assert.Equal(t, result, edt.TxResult.Result)
 		close(done)
 	}()
 
@@ -55,7 +55,7 @@ func TestEventBusPublishEventTx(t *testing.T) {
 		Index:  0,
 		Tx:     tx,
 		Result: result,
-	}})
+	}, time.Now()})
 	assert.NoError(t, err)
 
 	select {
@@ -193,10 +193,10 @@ func TestEventBusPublishEventTxDuplicateKeys(t *testing.T) {
 			select {
 			case msg := <-sub.Out():
 				data := msg.Data().(EventDataTx)
-				assert.Equal(t, int64(1), data.Height)
-				assert.Equal(t, uint32(0), data.Index)
-				assert.EqualValues(t, tx, data.Tx)
-				assert.Equal(t, result, data.Result)
+				assert.Equal(t, int64(1), data.TxResult.Height)
+				assert.Equal(t, uint32(0), data.TxResult.Index)
+				assert.EqualValues(t, tx, data.TxResult.Tx)
+				assert.Equal(t, result, data.TxResult.Result)
 				close(done)
 			case <-time.After(1 * time.Second):
 				return
@@ -208,7 +208,7 @@ func TestEventBusPublishEventTxDuplicateKeys(t *testing.T) {
 			Index:  0,
 			Tx:     tx,
 			Result: result,
-		}})
+		}, time.Now()})
 		assert.NoError(t, err)
 
 		select {

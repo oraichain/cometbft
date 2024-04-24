@@ -150,8 +150,8 @@ func testTxEventsSent(t *testing.T, broadcastMethod string) {
 			require.True(t, ok)
 
 			// make sure this is the proper tx
-			require.EqualValues(t, tx, txe.Tx)
-			require.True(t, txe.Result.IsOK())
+			require.EqualValues(t, tx, txe.TxResult.Tx)
+			require.True(t, txe.TxResult.Result.IsOK())
 		})
 	}
 }

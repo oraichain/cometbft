@@ -117,9 +117,9 @@ func BroadcastTxCommit(ctx *rpctypes.Context, tx types.Tx) (*ctypes.ResultBroadc
 			deliverTxRes := msg.Data().(types.EventDataTx)
 			return &ctypes.ResultBroadcastTxCommit{
 				CheckTx:   *checkTxRes,
-				DeliverTx: deliverTxRes.Result,
+				DeliverTx: deliverTxRes.TxResult.Result,
 				Hash:      tx.Hash(),
-				Height:    deliverTxRes.Height,
+				Height:    deliverTxRes.TxResult.Height,
 			}, nil
 		case <-deliverTxSub.Cancelled():
 			var reason string

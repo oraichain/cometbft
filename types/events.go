@@ -2,6 +2,7 @@ package types
 
 import (
 	"fmt"
+	"time"
 
 	abci "github.com/tendermint/tendermint/abci/types"
 	cmtjson "github.com/tendermint/tendermint/libs/json"
@@ -84,7 +85,8 @@ type EventDataNewEvidence struct {
 
 // All txs fire EventDataTx
 type EventDataTx struct {
-	abci.TxResult
+	TxResult abci.TxResult
+	Timestamp time.Time
 }
 
 // NOTE: This goes into the replay WAL
