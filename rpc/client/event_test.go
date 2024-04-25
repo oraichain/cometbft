@@ -149,8 +149,12 @@ func testTxEventsSent(t *testing.T, broadcastMethod string) {
 			txe, ok := evt.(types.EventDataTx)
 			require.True(t, ok)
 
+			block, err := c.Block(ctx, &txe.TxResult.Height)
+			require.Nil(t, err)
+
 			// make sure this is the proper tx
 			require.EqualValues(t, tx, txe.TxResult.Tx)
+			require.EqualValues(t, txe.Timestamp, block.Block.Header.Time)
 			require.True(t, txe.TxResult.Result.IsOK())
 		})
 	}

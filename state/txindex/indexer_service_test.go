@@ -15,6 +15,8 @@ import (
 	"github.com/tendermint/tendermint/types"
 )
 
+var defaultTestTime = time.Date(2024, time.December, 30, 0, 0, 0, 0, time.UTC)
+
 func TestIndexerServiceIndexesBlocks(t *testing.T) {
 	// event bus
 	eventBus := types.NewEventBus()
@@ -54,7 +56,7 @@ func TestIndexerServiceIndexesBlocks(t *testing.T) {
 		Tx:     types.Tx("foo"),
 		Result: abci.ResponseDeliverTx{Code: 0},
 	}
-	err = eventBus.PublishEventTx(types.EventDataTx{TxResult: *txResult1, Timestamp: time.Now()})
+	err = eventBus.PublishEventTx(types.EventDataTx{TxResult: *txResult1, Timestamp: defaultTestTime})
 	require.NoError(t, err)
 	txResult2 := &abci.TxResult{
 		Height: 1,
@@ -62,7 +64,7 @@ func TestIndexerServiceIndexesBlocks(t *testing.T) {
 		Tx:     types.Tx("bar"),
 		Result: abci.ResponseDeliverTx{Code: 0},
 	}
-	err = eventBus.PublishEventTx(types.EventDataTx{TxResult: *txResult2, Timestamp: time.Now()})
+	err = eventBus.PublishEventTx(types.EventDataTx{TxResult: *txResult2, Timestamp: defaultTestTime})
 	require.NoError(t, err)
 
 	time.Sleep(100 * time.Millisecond)

@@ -208,7 +208,7 @@ func TestEventBusPublishEventTxDuplicateKeys(t *testing.T) {
 			Index:  0,
 			Tx:     tx,
 			Result: result,
-		}, time.Now()})
+		}, time.Date(2024, time.December, 30, 0, 0, 0, 0, time.UTC)})
 		assert.NoError(t, err)
 
 		select {
