@@ -730,7 +730,7 @@ LOOP:
 			}
 		}
 
-		txi.setTmpHashes(tmpHashes, it)
+		txi.setTmpHashes(tmpHashes, it.Key(), it.Value())
 
 		// XXX: passing time in a ABCI Events is not yet implemented
 		// case time.Time:
