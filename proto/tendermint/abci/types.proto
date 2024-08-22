@@ -333,6 +333,8 @@ message TxResult {
   uint32            index  = 2;
   bytes             tx     = 3;
   ResponseDeliverTx result = 4 [(gogoproto.nullable) = false];
+  google.protobuf.Timestamp time = 5
+      [(gogoproto.nullable) = true, (gogoproto.stdtime) = true];
 }
 
 //----------------------------------------
