@@ -1,5 +1,55 @@
 # CHANGELOG
 
+## v0.38.12
+
+*September 3, 2024*
+
+This release includes a security fix for the light client and is recommended
+for all users.
+
+### BUG FIXES
+
+- `[light]` Cross-check proposer priorities in retrieved validator sets
+  ([\#ASA-2024-009](https://github.com/cometbft/cometbft/security/advisories/GHSA-g5xx-c4hv-9ccc))
+- `[privval]` Ignore duplicate privval listen when already connected ([\#3828](https://github.com/cometbft/cometbft/issues/3828)
+
+### DEPENDENCIES
+
+- `[crypto/secp256k1]` Adjust to breaking interface changes in
+  `btcec/v2` latest release, while avoiding breaking changes to
+  local CometBFT functions
+  ([\#3728](https://github.com/cometbft/cometbft/pull/3728))
+
+### IMPROVEMENTS
+
+- `[types]` Check that proposer is one of the validators in `ValidateBasic`
+  ([\#ASA-2024-009](https://github.com/cometbft/cometbft/security/advisories/GHSA-g5xx-c4hv-9ccc))
+- `[e2e]` Add `log_level` option to manifest file
+  ([#3819](https://github.com/cometbft/cometbft/pull/3819)).
+- `[e2e]` Add `log_format` option to manifest file
+  ([#3836](https://github.com/cometbft/cometbft/issues/3836)).
+
+## v0.38.11
+
+*August 12, 2024*
+
+This release fixes a panic in consensus where CometBFT would previously panic
+if there's no extension signature in non-nil Precommit EVEN IF vote extensions
+themselves are disabled.
+
+It also includes a few other bug fixes and performance improvements.
+
+### BUG FIXES
+
+- `[types]` Only check IFF vote is a non-nil Precommit if extensionsEnabled
+  types ([\#3565](https://github.com/cometbft/cometbft/issues/3565))
+
+### IMPROVEMENTS
+
+- `[indexer]` Fixed ineffective select break statements; they now
+  point to their enclosing for loop label to exit
+  ([\#3544](https://github.com/cometbft/cometbft/issues/3544))
+
 ## v0.38.10
 
 *July 16, 2024*
@@ -309,7 +359,7 @@ gossip.
   ([\#1584](https://github.com/cometbft/cometbft/pull/1584))
 - `[config]` Add mempool parameters `experimental_max_gossip_connections_to_persistent_peers` and
   `experimental_max_gossip_connections_to_non_persistent_peers` for limiting the number of peers to
-  which the node gossip transactions. 
+  which the node gossip transactions.
   ([\#1558](https://github.com/cometbft/cometbft/pull/1558))
   ([\#1584](https://github.com/cometbft/cometbft/pull/1584))
 
@@ -721,4 +771,3 @@ Friendly reminder, we have a [bug bounty program](https://hackerone.com/cosmos).
 ## Previous changes
 
 For changes released before the creation of CometBFT, please refer to the Tendermint Core [CHANGELOG.md](https://github.com/tendermint/tendermint/blob/a9feb1c023e172b542c972605311af83b777855b/CHANGELOG.md).
-
