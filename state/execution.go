@@ -710,6 +710,7 @@ func fireEvents(
 			Index:  uint32(i),
 			Tx:     tx,
 			Result: *(abciResponse.TxResults[i]),
+			Time:   &block.Time,
 		}}); err != nil {
 			logger.Error("failed publishing event TX", "err", err)
 		}
