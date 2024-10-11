@@ -269,7 +269,9 @@ func (app *localClient) InitChainSync(req types.RequestInitChain) (*types.Respon
 	app.mtx.Lock()
 	defer app.mtx.Unlock()
 
+	app.Logger.Error("Before init chain")
 	res := app.Application.InitChain(req)
+	app.Logger.Error("After init chain")
 	return &res, nil
 }
 

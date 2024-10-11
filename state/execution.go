@@ -541,11 +541,13 @@ func ExecCommitBlock(
 	}
 
 	// Commit block, get hash back
+	logger.Error("Before commit sync of commit block")
 	res, err := appConnConsensus.CommitSync()
 	if err != nil {
 		logger.Error("client error during proxyAppConn.CommitSync", "err", res)
 		return nil, err
 	}
+	logger.Error("After commit sync of commit block")
 
 	// ResponseCommit has no error or log, just data
 	return res.Data, nil

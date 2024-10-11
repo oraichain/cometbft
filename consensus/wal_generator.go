@@ -41,19 +41,26 @@ func WALGenerateNBlocks(t *testing.T, wr io.Writer, numBlocks int) (err error) {
 	privValidatorKeyFile := config.PrivValidatorKeyFile()
 	privValidatorStateFile := config.PrivValidatorStateFile()
 	privValidator := privval.LoadOrGenFilePV(privValidatorKeyFile, privValidatorStateFile)
-	genDoc, err := types.GenesisDocFromFile(config.GenesisFile())
-	if err != nil {
-		return fmt.Errorf("failed to read genesis file: %w", err)
-	}
 	blockStoreDB := db.NewMemDB()
 	stateDB := blockStoreDB
 	stateStore := sm.NewStore(stateDB, sm.StoreOptions{
 		DiscardABCIResponses: false,
 	})
-	state, err := sm.MakeGenesisState(genDoc)
-	if err != nil {
-		return fmt.Errorf("failed to make genesis state: %w", err)
+
+	state, err := stateStore.Load()
+	// if it's the first time running the node with initial states -> load from genesis doc
+	// otherwise, load from db to save memory
+	if err != nil || state.LastBlockHeight == 0 {
+		genDoc, err := types.GenesisDocFromFile(config.GenesisFile())
+		if err != nil {
+			return fmt.Errorf("failed to read genesis file: %w", err)
+		}
+		state, err = sm.MakeGenesisState(genDoc)
+		if err != nil {
+			return fmt.Errorf("failed to make genesis state: %w", err)
+		}
 	}
+
 	state.Version.Consensus.App = kvstore.ProtocolVersion
 	if err = stateStore.Save(state); err != nil {
 		t.Error(err)

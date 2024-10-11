@@ -2,6 +2,7 @@ package consensus
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"hash/crc32"
 	"io"
@@ -316,10 +317,15 @@ func (h *Handshaker) ReplayBlocks(
 			Validators:      nextVals,
 			AppStateBytes:   h.genDoc.AppState,
 		}
+
+		h.logger.Debug("Before init chain sync")
 		res, err := proxyApp.Consensus().InitChainSync(req)
 		if err != nil {
 			return nil, err
 		}
+		h.logger.Debug("After init chain sync")
+		// release handshake app state mem store since we are done with it
+		h.genDoc.AppState = json.RawMessage([]byte("{}"))
 
 		appHash = res.AppHash
 
@@ -468,7 +474,7 @@ func (h *Handshaker) replayBlocks(
 			assertAppHashEqualsOneFromBlock(appHash, block)
 		}
 
-		appHash, err = sm.ExecCommitBlock(proxyApp.Consensus(), block, h.logger, h.stateStore, h.genDoc.InitialHeight)
+		appHash, err = sm.ExecCommitBlock(proxyApp.Consensus(), block, h.logger, h.stateStore, h.initialState.InitialHeight)
 		if err != nil {
 			return nil, err
 		}
@@ -486,13 +492,16 @@ func (h *Handshaker) replayBlocks(
 	}
 
 	assertAppHashEqualsOneFromState(appHash, state)
+	h.logger.Error("After ctually replaying blocks")
 	return appHash, nil
 }
 
 // ApplyBlock on the proxyApp with the last block.
 func (h *Handshaker) replayBlock(state sm.State, height int64, proxyApp proxy.AppConnConsensus) (sm.State, error) {
+	h.logger.Error("Before replayBlock")
 	block := h.store.LoadBlock(height)
 	meta := h.store.LoadBlockMeta(height)
+	h.logger.Error("After replayBlock load block and load block meta")
 
 	// Use stubs for both mempool and evidence pool since no transactions nor
 	// evidence are needed here - block already exists.
@@ -501,6 +510,7 @@ func (h *Handshaker) replayBlock(state sm.State, height int64, proxyApp proxy.Ap
 
 	var err error
 	state, _, err = blockExec.ApplyBlock(state, meta.BlockID, block)
+	h.logger.Error("After ApplyBlock")
 	if err != nil {
 		return sm.State{}, err
 	}

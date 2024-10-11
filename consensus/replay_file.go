@@ -300,14 +300,6 @@ func newConsensusStateForReplay(config cfg.BaseConfig, csConfig *cfg.ConsensusCo
 	stateStore := sm.NewStore(stateDB, sm.StoreOptions{
 		DiscardABCIResponses: false,
 	})
-	gdoc, err := sm.MakeGenesisDocFromFile(config.GenesisFile())
-	if err != nil {
-		cmtos.Exit(err.Error())
-	}
-	state, err := sm.MakeGenesisState(gdoc)
-	if err != nil {
-		cmtos.Exit(err.Error())
-	}
 
 	// Create proxyAppConn connection (consensus, mempool, query)
 	clientCreator := proxy.DefaultClientCreator(config.ProxyApp, config.ABCI, config.DBDir())
@@ -315,6 +307,26 @@ func newConsensusStateForReplay(config cfg.BaseConfig, csConfig *cfg.ConsensusCo
 	err = proxyApp.Start()
 	if err != nil {
 		cmtos.Exit(fmt.Sprintf("Error starting proxy app conns: %v", err))
+	}
+
+	// Handshake is done via ABCI Info on the query conn.
+	res, err := proxyApp.Query().InfoSync(proxy.RequestInfo)
+	if err != nil {
+		cmtos.Exit(fmt.Sprintf("error calling Info: %v", err))
+	}
+
+	var gdoc *types.GenesisDoc
+	state, err := stateStore.Load()
+	// only load genesis file if it's the first time
+	if err != nil || res.LastBlockHeight == 0 {
+		gdoc, err = sm.MakeGenesisDocFromFile(config.GenesisFile())
+		if err != nil {
+			cmtos.Exit(err.Error())
+		}
+		state, err = sm.MakeGenesisState(gdoc)
+		if err != nil {
+			cmtos.Exit(err.Error())
+		}
 	}
 
 	eventBus := types.NewEventBus()

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"runtime"
 	"time"
 
 	"github.com/tendermint/tendermint/crypto"
@@ -134,5 +135,8 @@ func GenesisDocFromFile(genDocFile string) (*GenesisDoc, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error reading GenesisDoc at %s: %w", genDocFile, err)
 	}
+	jsonBlob = nil
+	// clean unused mem from jsonblob
+	runtime.GC()
 	return genDoc, nil
 }

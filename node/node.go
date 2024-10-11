@@ -3,6 +3,7 @@ package node
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -729,6 +730,11 @@ func NewNode(config *cfg.Config,
 		return nil, err
 	}
 
+	err = genDoc.ValidateAndComplete()
+	if err != nil {
+		return nil, err
+	}
+
 	// Create the proxyApp and establish connections to the ABCI app (consensus, mempool, query).
 	proxyApp, err := createAndStartProxyAppConns(clientCreator, logger)
 	if err != nil {
@@ -771,6 +777,10 @@ func NewNode(config *cfg.Config,
 		logger.Info("Found local state with non-zero height, skipping state sync")
 		stateSync = false
 	}
+	// if it's statesync -> no need to maintain genesis app state which consumes memory, as we won't do init chain ops
+	if stateSync {
+		genDoc.AppState = json.RawMessage([]byte("{}"))
+	}
 
 	// Create the handshaker, which calls RequestInfo, sets the AppVersion on the state,
 	// and replays any blocks as necessary to sync CometBFT with the app.
@@ -779,6 +789,9 @@ func NewNode(config *cfg.Config,
 		if err := doHandshake(stateStore, state, blockStore, genDoc, eventBus, proxyApp, consensusLogger); err != nil {
 			return nil, err
 		}
+
+		// release AppState because we have done using it after the handshake
+		genDoc.AppState = json.RawMessage([]byte("{}"))
 
 		// Reload the state. It will have the Version.Consensus.App set by the
 		// Handshake, and may have other modifications as well (ie. depending on
@@ -846,7 +859,7 @@ func NewNode(config *cfg.Config,
 	)
 	stateSyncReactor.SetLogger(logger.With("module", "statesync"))
 
-	nodeInfo, err := makeNodeInfo(config, nodeKey, txIndexer, genDoc, state)
+	nodeInfo, err := makeNodeInfo(config, nodeKey, txIndexer, genDoc.ChainID, state)
 	if err != nil {
 		return nil, err
 	}
@@ -1080,7 +1093,7 @@ func (n *Node) ConfigureRPC() error {
 		P2PTransport:   n,
 
 		PubKey:           pubKey,
-		GenDoc:           n.genesisDoc,
+		GenDoc:           getPrunedGenDoc(n.genesisDoc),
 		TxIndexer:        n.txIndexer,
 		BlockIndexer:     n.blockIndexer,
 		ConsensusReactor: n.consensusReactor,
@@ -1325,7 +1338,7 @@ func makeNodeInfo(
 	config *cfg.Config,
 	nodeKey *p2p.NodeKey,
 	txIndexer txindex.TxIndexer,
-	genDoc *types.GenesisDoc,
+	chainId string,
 	state sm.State,
 ) (p2p.DefaultNodeInfo, error) {
 	txIndexerStatus := "on"
@@ -1352,7 +1365,7 @@ func makeNodeInfo(
 			state.Version.Consensus.App,
 		),
 		DefaultNodeID: nodeKey.ID(),
-		Network:       genDoc.ChainID,
+		Network:       chainId,
 		Version:       version.TMCoreSemVer,
 		Channels: []byte{
 			bcChannel,
@@ -1386,25 +1399,29 @@ func makeNodeInfo(
 
 //------------------------------------------------------------------------------
 
-var genesisDocKey = []byte("genesisDoc")
+var genesisDocWithoutAppStateKey = []byte("genesisDocWithoutAppState")
 
 // LoadStateFromDBOrGenesisDocProvider attempts to load the state from the
 // database, or creates one using the given genesisDocProvider. On success this also
 // returns the genesis doc loaded through the given provider.
-func LoadStateFromDBOrGenesisDocProvider(
+func 	LoadStateFromDBOrGenesisDocProvider(
 	stateDB dbm.DB,
 	genesisDocProvider GenesisDocProvider,
 ) (sm.State, *types.GenesisDoc, error) {
-	// Get genesis doc
-	genDoc, err := loadGenesisDoc(stateDB)
+	// Get genesis doc. For first timer, this will return error -> it will load from genesis provider, split into two docs
+	// one is without app state for fast load without much RAM consumption
+	genDoc, err := loadGenesisDoc(stateDB, genesisDocWithoutAppStateKey)
 	if err != nil {
 		genDoc, err = genesisDocProvider()
 		if err != nil {
 			return sm.State{}, nil, err
 		}
-		// save genesis doc to prevent a certain class of user errors (e.g. when it
-		// was changed, accidentally or not). Also good for audit trail.
-		if err := saveGenesisDoc(stateDB, genDoc); err != nil {
+
+		// we don't need genesis app state after the first initial height!
+		// because we already persist everything into the db
+		// that's why we set AppState as empty for faster load next time
+		prunedGenDoc := getPrunedGenDoc(genDoc)
+		if err := saveGenesisDoc(stateDB, prunedGenDoc, genesisDocWithoutAppStateKey); err != nil {
 			return sm.State{}, nil, err
 		}
 	}
@@ -1419,8 +1436,8 @@ func LoadStateFromDBOrGenesisDocProvider(
 }
 
 // panics if failed to unmarshal bytes
-func loadGenesisDoc(db dbm.DB) (*types.GenesisDoc, error) {
-	b, err := db.Get(genesisDocKey)
+func loadGenesisDoc(db dbm.DB, key []byte) (*types.GenesisDoc, error) {
+	b, err := db.Get(key)
 	if err != nil {
 		panic(err)
 	}
@@ -1436,12 +1453,12 @@ func loadGenesisDoc(db dbm.DB) (*types.GenesisDoc, error) {
 }
 
 // panics if failed to marshal the given genesis document
-func saveGenesisDoc(db dbm.DB, genDoc *types.GenesisDoc) error {
+func saveGenesisDoc(db dbm.DB, genDoc *types.GenesisDoc, key []byte) error {
 	b, err := cmtjson.Marshal(genDoc)
 	if err != nil {
 		return fmt.Errorf("failed to save genesis doc due to marshaling error: %w", err)
 	}
-	if err := db.SetSync(genesisDocKey, b); err != nil {
+	if err := db.SetSync(key, b); err != nil {
 		return err
 	}
 
@@ -1497,4 +1514,19 @@ func splitAndTrimEmpty(s, sep, cutset string) []string {
 		}
 	}
 	return nonEmptyStrings
+}
+
+func getPrunedGenDoc(genDoc *types.GenesisDoc) *types.GenesisDoc {
+	// we don't need genesis app state after the first initial height!
+	// because we already persist everything into the db
+	// that's why we set AppState as empty for faster load next time
+	return &types.GenesisDoc{
+		GenesisTime:     genDoc.GenesisTime,
+		ChainID:         genDoc.ChainID,
+		InitialHeight:   genDoc.InitialHeight,
+		ConsensusParams: genDoc.ConsensusParams,
+		Validators:      genDoc.Validators,
+		AppHash:         genDoc.AppHash,
+		AppState:        json.RawMessage([]byte("{}")),
+	}
 }
