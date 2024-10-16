@@ -3,6 +3,7 @@ package consensus
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"hash/crc32"
 	"io"
@@ -339,6 +340,7 @@ func (h *Handshaker) ReplayBlocksWithContext(
 		}
 
 		appHash = res.AppHash
+		h.genDoc.AppState = json.RawMessage([]byte("{}"))
 
 		if stateBlockHeight == 0 { // we only update state when we are in initial state
 			// If the app did not return an app hash, we keep the one set from the genesis doc in
@@ -371,6 +373,8 @@ func (h *Handshaker) ReplayBlocksWithContext(
 			}
 		}
 	}
+
+	h.genDoc.AppState = json.RawMessage([]byte("{}"))
 
 	// First handle edge cases and constraints on the storeBlockHeight and storeBlockBase.
 	switch {

@@ -766,6 +766,7 @@ func ExecCommitBlock(
 		logger.Error("client error during proxyAppConn.Commit", "err", err)
 		return nil, err
 	}
+	logger.Debug("after committing block", "height", block.Height, "app_hash", fmt.Sprintf("%X", resp.AppHash))
 
 	// ResponseCommit has no error or log
 	return resp.AppHash, nil

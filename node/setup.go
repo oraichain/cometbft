@@ -3,6 +3,7 @@ package node
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -569,9 +570,10 @@ func LoadStateFromDBOrGenesisDocProvider(
 		if err != nil {
 			return sm.State{}, nil, fmt.Errorf("error in genesis doc: %w", err)
 		}
+		prunedGenDoc := getPrunedGenDoc(genDoc)
 		// save genesis doc to prevent a certain class of user errors (e.g. when it
 		// was changed, accidentally or not). Also good for audit trail.
-		if err := saveGenesisDoc(stateDB, genDoc); err != nil {
+		if err := saveGenesisDoc(stateDB, prunedGenDoc); err != nil {
 			return sm.State{}, nil, err
 		}
 	}
@@ -660,4 +662,19 @@ func splitAndTrimEmpty(s, sep, cutset string) []string {
 		}
 	}
 	return nonEmptyStrings
+}
+
+func getPrunedGenDoc(genDoc *types.GenesisDoc) *types.GenesisDoc {
+	// we don't need genesis app state after the first initial height!
+	// because we already persist everything into the db
+	// that's why we set AppState as empty for faster load next time
+	return &types.GenesisDoc{
+		GenesisTime:     genDoc.GenesisTime,
+		ChainID:         genDoc.ChainID,
+		InitialHeight:   genDoc.InitialHeight,
+		ConsensusParams: genDoc.ConsensusParams,
+		Validators:      genDoc.Validators,
+		AppHash:         genDoc.AppHash,
+		AppState:        json.RawMessage([]byte("{}")),
+	}
 }

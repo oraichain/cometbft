@@ -3,6 +3,7 @@ package node
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -353,6 +354,10 @@ func NewNodeWithContext(ctx context.Context,
 		stateSync = false
 	}
 
+	if stateSync {
+		genDoc.AppState = json.RawMessage([]byte("{}"))
+	}
+
 	// Create the handshaker, which calls RequestInfo, sets the AppVersion on the state,
 	// and replays any blocks as necessary to sync CometBFT with the app.
 	consensusLogger := logger.With("module", "consensus")
@@ -360,6 +365,8 @@ func NewNodeWithContext(ctx context.Context,
 		if err := doHandshake(ctx, stateStore, state, blockStore, genDoc, eventBus, proxyApp, consensusLogger); err != nil {
 			return nil, err
 		}
+
+		genDoc.AppState = json.RawMessage([]byte("{}"))
 
 		// Reload the state. It will have the Version.Consensus.App set by the
 		// Handshake, and may have other modifications as well (ie. depending on
@@ -428,7 +435,7 @@ func NewNodeWithContext(ctx context.Context,
 	)
 	stateSyncReactor.SetLogger(logger.With("module", "statesync"))
 
-	nodeInfo, err := makeNodeInfo(config, nodeKey, txIndexer, genDoc, state)
+	nodeInfo, err := makeNodeInfo(config, nodeKey, txIndexer, genDoc.ChainID, state)
 	if err != nil {
 		return nil, err
 	}
@@ -659,6 +666,7 @@ func (n *Node) ConfigureRPC() (*rpccore.Environment, error) {
 	if pubKey == nil || err != nil {
 		return nil, fmt.Errorf("can't get pubkey: %w", err)
 	}
+	prunedGenDoc := getPrunedGenDoc(n.genesisDoc)
 	rpcCoreEnv := rpccore.Environment{
 		ProxyAppQuery:   n.proxyApp.Query(),
 		ProxyAppMempool: n.proxyApp.Mempool(),
@@ -671,7 +679,7 @@ func (n *Node) ConfigureRPC() (*rpccore.Environment, error) {
 		P2PTransport:   n,
 		PubKey:         pubKey,
 
-		GenDoc:           n.genesisDoc,
+		GenDoc:           prunedGenDoc,
 		TxIndexer:        n.txIndexer,
 		BlockIndexer:     n.blockIndexer,
 		ConsensusReactor: n.consensusReactor,
@@ -929,7 +937,7 @@ func makeNodeInfo(
 	config *cfg.Config,
 	nodeKey *p2p.NodeKey,
 	txIndexer txindex.TxIndexer,
-	genDoc *types.GenesisDoc,
+	chainID string,
 	state sm.State,
 ) (p2p.DefaultNodeInfo, error) {
 	txIndexerStatus := "on"
@@ -944,7 +952,7 @@ func makeNodeInfo(
 			state.Version.Consensus.App,
 		),
 		DefaultNodeID: nodeKey.ID(),
-		Network:       genDoc.ChainID,
+		Network:       chainID,
 		Version:       version.TMCoreSemVer,
 		Channels: []byte{
 			bc.BlocksyncChannel,
