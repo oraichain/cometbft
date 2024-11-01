@@ -121,6 +121,10 @@ func insertEvents(dbtx *sql.Tx, blockID, txID uint32, evts []abci.Event) error {
 				continue
 			}
 			compositeKey := evt.Type + "." + attr.Key
+			// ignore block_bloom, it is causing some errors when inserting
+			if compositeKey == "block_bloom.bloom" {
+				continue
+			}
 			if _, err := dbtx.Exec(insertAttributeQuery, eid, attr.Key, compositeKey, attr.Value); err != nil {
 				return err
 			}
