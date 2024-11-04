@@ -18,9 +18,13 @@ import (
 
 const (
 	tableBlocks     = "blocks"
+	TableBlocks     = tableBlocks
 	tableTxResults  = "tx_results"
+	TableTxResults  = tableTxResults
 	tableEvents     = "events"
+	TableEvents     = tableEvents
 	tableAttributes = "attributes"
+	TableAttributes = tableAttributes
 	driverName      = "postgres"
 )
 
@@ -45,6 +49,14 @@ func NewEventSink(connStr, chainID string) (*EventSink, error) {
 		store:   db,
 		chainID: chainID,
 	}, nil
+}
+
+// NewEventSinkFromDB constructs an event sink associated with the PostgreSQL from db input
+func NewEventSinkFromDB(db *sql.DB, chainID string) *EventSink {
+	return &EventSink{
+		store:   db,
+		chainID: chainID,
+	}
 }
 
 // DB returns the underlying Postgres connection used by the sink.
@@ -145,6 +157,10 @@ func makeIndexedEvent(compositeKey, value string) abci.Event {
 	return abci.Event{Type: compositeKey[:i], Attributes: []abci.EventAttribute{
 		{Key: compositeKey[i+1:], Value: value, Index: true},
 	}}
+}
+
+func MakeIndexedEvent(compositeKey, value string) abci.Event {
+	return makeIndexedEvent(compositeKey, value)
 }
 
 // IndexBlockEvents indexes the specified block header, part of the
