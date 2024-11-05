@@ -63,6 +63,10 @@ func NewEventSinkFromDB(db *sql.DB, chainID string) *EventSink {
 // This is exported to support testing.
 func (es *EventSink) DB() *sql.DB { return es.store }
 
+func (es *EventSink) ChainID() string {
+	return es.chainID
+}
+
 // RunInTransaction executes query in a fresh database transaction.
 // If query reports an error, the transaction is rolled back and the
 // error from query is reported to the caller.
