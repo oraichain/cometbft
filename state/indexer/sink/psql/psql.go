@@ -63,11 +63,11 @@ func NewEventSinkFromDB(db *sql.DB, chainID string) *EventSink {
 // This is exported to support testing.
 func (es *EventSink) DB() *sql.DB { return es.store }
 
-// runInTransaction executes query in a fresh database transaction.
+// RunInTransaction executes query in a fresh database transaction.
 // If query reports an error, the transaction is rolled back and the
 // error from query is reported to the caller.
 // Otherwise, the result of committing the transaction is returned.
-func runInTransaction(db *sql.DB, query func(*sql.Tx) error) error {
+func RunInTransaction(db *sql.DB, query func(*sql.Tx) error) error {
 	dbtx, err := db.Begin()
 	if err != nil {
 		return err
@@ -79,10 +79,10 @@ func runInTransaction(db *sql.DB, query func(*sql.Tx) error) error {
 	return dbtx.Commit()
 }
 
-// queryWithID executes the specified SQL query with the given arguments,
+// QueryWithID executes the specified SQL query with the given arguments,
 // expecting a single-row, single-column result containing an ID. If the query
 // succeeds, the ID from the result is returned.
-func queryWithID(tx *sql.Tx, query string, args ...interface{}) (uint32, error) {
+func QueryWithID(tx *sql.Tx, query string, args ...interface{}) (uint32, error) {
 	var id uint32
 	if err := tx.QueryRow(query, args...).Scan(&id); err != nil {
 		return 0, err
@@ -122,7 +122,7 @@ func insertEvents(dbtx *sql.Tx, blockID, txID uint32, evts []abci.Event) error {
 			continue
 		}
 
-		eid, err := queryWithID(dbtx, insertEventQuery, blockID, txIDArg, evt.Type)
+		eid, err := QueryWithID(dbtx, insertEventQuery, blockID, txIDArg, evt.Type)
 		if err != nil {
 			return err
 		}
@@ -168,10 +168,10 @@ func MakeIndexedEvent(compositeKey, value string) abci.Event {
 func (es *EventSink) IndexBlockEvents(h types.EventDataNewBlockEvents) error {
 	ts := time.Now().UTC()
 
-	return runInTransaction(es.store, func(dbtx *sql.Tx) error {
+	return RunInTransaction(es.store, func(dbtx *sql.Tx) error {
 		// Add the block to the blocks table and report back its row ID for use
 		// in indexing the events for the block.
-		blockID, err := queryWithID(dbtx, `
+		blockID, err := QueryWithID(dbtx, `
 INSERT INTO `+tableBlocks+` (height, chain_id, created_at)
   VALUES ($1, $2, $3)
   ON CONFLICT DO NOTHING
@@ -210,10 +210,10 @@ func (es *EventSink) IndexTxEvents(txrs []*abci.TxResult) error {
 		// Index the hash of the underlying transaction as a hex string.
 		txHash := fmt.Sprintf("%X", types.Tx(txr.Tx).Hash())
 
-		if err := runInTransaction(es.store, func(dbtx *sql.Tx) error {
+		if err := RunInTransaction(es.store, func(dbtx *sql.Tx) error {
 			// Find the block associated with this transaction. The block header
 			// must have been indexed prior to the transactions belonging to it.
-			blockID, err := queryWithID(dbtx, `
+			blockID, err := QueryWithID(dbtx, `
 SELECT rowid FROM `+tableBlocks+` WHERE height = $1 AND chain_id = $2;
 `, txr.Height, es.chainID)
 			if err != nil {
@@ -221,7 +221,7 @@ SELECT rowid FROM `+tableBlocks+` WHERE height = $1 AND chain_id = $2;
 			}
 
 			// Insert a record for this tx_result and capture its ID for indexing events.
-			txID, err := queryWithID(dbtx, `
+			txID, err := QueryWithID(dbtx, `
 INSERT INTO `+tableTxResults+` (block_id, index, created_at, tx_hash, tx_result)
   VALUES ($1, $2, $3, $4, $5)
   ON CONFLICT DO NOTHING
