@@ -66,7 +66,7 @@ func TestMain(m *testing.M) {
 			"POSTGRES_DB=" + dbName,
 			"listen_addresses = '*'",
 		},
-		ExposedPorts: []string{port},
+		ExposedPorts: []string{port + "/tcp"},
 	}, func(config *docker.HostConfig) {
 		// set AutoRemove to true so that stopped container goes away by itself
 		config.AutoRemove = true
@@ -175,10 +175,42 @@ func TestIndexing(t *testing.T) {
 					Index: true,
 				},
 			}},
-		})
+		}, types.Tx("HELLO WORLD"), 0)
 		require.NoError(t, indexer.IndexTxEvents([]*abci.TxResult{txResult}))
 
 		txr, err := loadTxResult(types.Tx(txResult.Tx).Hash())
+		require.NoError(t, err)
+		assert.Equal(t, txResult, txr)
+
+		require.NoError(t, verifyTimeStamp(tableTxResults))
+		require.NoError(t, verifyTimeStamp(viewTxEvents))
+
+		verifyNotImplemented(t, "getTxByHash", func() (bool, error) {
+			txr, err := indexer.GetTxByHash(types.Tx(txResult.Tx).Hash())
+			return txr != nil, err
+		})
+		verifyNotImplemented(t, "tx search", func() (bool, error) {
+			txr, err := indexer.SearchTxEvents(context.Background(), nil)
+			return txr != nil, err
+		})
+
+		// try to insert the duplicate tx events.
+		err = indexer.IndexTxEvents([]*abci.TxResult{txResult})
+		require.NoError(t, err)
+	})
+
+	t.Run("IndexStrangeTxEvents", func(t *testing.T) {
+		indexer := &EventSink{store: testDB(), chainID: chainID}
+
+		tx := types.Tx("Strange TX")
+		txResult := txResultWithEvents([]abci.Event{
+			makeIndexedEvent("tx.acc_seq", string([]byte{74, 203, 235, 48, 143, 24, 240, 201, 141, 227, 186, 190, 49, 7, 93, 195, 124, 187, 250, 112, 47, 49})),
+			makeIndexedEvent("tx.signature", "DipoFl1qRPjp8sSddHOsDgunJMET5jtsFjyGk3d7rdBwNvqh/49DUCMQXeHCslv1TM6aKUT0ahpEeuYxNZ/Kfg=="),
+			makeIndexedEvent("message.action", "/cosmos.bank.v1beta1.MsgSend"),
+		}, tx, 1)
+		require.NoError(t, indexer.IndexTxEvents([]*abci.TxResult{txResult}))
+
+		txr, err := loadTxResult(tx.Hash())
 		require.NoError(t, err)
 		assert.Equal(t, txResult, txr)
 
@@ -298,11 +330,11 @@ func resetDatabase(db *sql.DB) error {
 
 // txResultWithEvents constructs a fresh transaction result with fixed values
 // for testing, that includes the specified events.
-func txResultWithEvents(events []abci.Event) *abci.TxResult {
+func txResultWithEvents(events []abci.Event, txBz types.Tx, index uint32) *abci.TxResult {
 	return &abci.TxResult{
 		Height: 1,
-		Index:  0,
-		Tx:     types.Tx("HELLO WORLD"),
+		Index:  index,
+		Tx:     txBz,
 		Result: abci.ExecTxResult{
 			Data:   []byte{0},
 			Code:   abci.CodeTypeOK,

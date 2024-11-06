@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/cosmos/gogoproto/proto"
 
@@ -106,6 +107,7 @@ func insertEvents(dbtx *sql.Tx, blockID, txID uint32, evts []abci.Event) error {
 		txIDArg = txID
 	}
 
+	// Index any events packaged with the transaction.
 	const (
 		insertEventQuery = `
 			INSERT INTO ` + tableEvents + ` (block_id, tx_id, type)
@@ -128,7 +130,7 @@ func insertEvents(dbtx *sql.Tx, blockID, txID uint32, evts []abci.Event) error {
 
 		eid, err := QueryWithID(dbtx, insertEventQuery, blockID, txIDArg, evt.Type)
 		if err != nil {
-			return err
+			return fmt.Errorf(fmt.Sprintf("Error inserting event query: %v of event %v: %v: %v\n", blockID, txIDArg, evt.Type, err), "")
 		}
 
 		// Add any attributes flagged for indexing.
@@ -141,8 +143,13 @@ func insertEvents(dbtx *sql.Tx, blockID, txID uint32, evts []abci.Event) error {
 			if compositeKey == "block_bloom.bloom" {
 				continue
 			}
-			if _, err := dbtx.Exec(insertAttributeQuery, eid, attr.Key, compositeKey, attr.Value); err != nil {
-				return err
+			attrValue := attr.Value
+			if hasNonPrintableChars(attr.Value) {
+				// convert to hex to safely store the value
+				attrValue = fmt.Sprintf("%x\n", []byte(attr.Value))
+			}
+			if _, err := dbtx.Exec(insertAttributeQuery, eid, attr.Key, compositeKey, attrValue); err != nil {
+				return fmt.Errorf(fmt.Sprintf("Error processing attr: %v of event %v: %v\n", attr, evt.Type, err), "")
 			}
 		}
 	}
@@ -278,3 +285,12 @@ func (es *EventSink) HasBlock(_ int64) (bool, error) {
 
 // Stop closes the underlying PostgreSQL database.
 func (es *EventSink) Stop() error { return es.store.Close() }
+
+func hasNonPrintableChars(s string) bool {
+	for _, r := range s {
+		if !unicode.IsPrint(r) {
+			return true // Non-printable character found
+		}
+	}
+	return false // All characters are printable
+}
