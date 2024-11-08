@@ -19,6 +19,34 @@ type HeightInfo struct {
 	onlyHeightEq    bool
 }
 
+func (info HeightInfo) OnlyHeightEq() bool {
+	return info.onlyHeightEq
+}
+
+func (info HeightInfo) HeightRange() indexer.QueryRange {
+	return info.heightRange
+}
+
+func (info HeightInfo) HeightEqIdx() int {
+	return info.heightEqIdx
+}
+
+func (info HeightInfo) Height() int64 {
+	return info.height
+}
+
+func (info HeightInfo) OnlyHeightRange() bool {
+	return info.onlyHeightRange
+}
+
+func (info *HeightInfo) SetheightRange(heightRange indexer.QueryRange) {
+	info.heightRange = heightRange
+}
+
+func (info *HeightInfo) SetHeight(height int64) {
+	info.height = height
+}
+
 // IntInSlice returns true if a is found in the list.
 func intInSlice(a int, list []int) bool {
 	for _, b := range list {
@@ -48,7 +76,7 @@ func ParseEventSeqFromEventKey(key []byte) (int64, error) {
 	return eventSeq, nil
 }
 
-func dedupHeight(conditions []cmtsyntax.Condition) (dedupConditions []cmtsyntax.Condition, heightInfo HeightInfo) {
+func DedupHeight(conditions []cmtsyntax.Condition) (dedupConditions []cmtsyntax.Condition, heightInfo HeightInfo) {
 	heightInfo.heightEqIdx = -1
 	heightRangeExists := false
 	found := false

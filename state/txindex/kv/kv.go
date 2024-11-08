@@ -224,7 +224,7 @@ func (txi *TxIndex) Search(ctx context.Context, q *query.Query) ([]*abci.TxResul
 	conditions := q.Syntax()
 
 	// if there is a hash condition, return the result immediately
-	hash, ok, err := lookForHash(conditions)
+	hash, ok, err := LookForHash(conditions)
 	if err != nil {
 		return nil, fmt.Errorf("error during searching for a hash in the query: %w", err)
 	} else if ok {
@@ -245,7 +245,7 @@ func (txi *TxIndex) Search(ctx context.Context, q *query.Query) ([]*abci.TxResul
 
 	// If we are not matching events and tx.height = 3 occurs more than once, the later value will
 	// overwrite the first one.
-	conditions, heightInfo = dedupHeight(conditions)
+	conditions, heightInfo = DedupHeight(conditions)
 
 	if !heightInfo.onlyHeightEq {
 		skipIndexes = append(skipIndexes, heightInfo.heightEqIdx)
@@ -330,7 +330,7 @@ RESULTS_LOOP:
 	return results, nil
 }
 
-func lookForHash(conditions []syntax.Condition) (hash []byte, ok bool, err error) {
+func LookForHash(conditions []syntax.Condition) (hash []byte, ok bool, err error) {
 	for _, c := range conditions {
 		if c.Tag == types.TxHashKey {
 			decoded, err := hex.DecodeString(c.Arg.Value())
