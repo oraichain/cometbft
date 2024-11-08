@@ -37,6 +37,14 @@ CREATE TABLE tx_results (
   tx_hash VARCHAR NOT NULL,
   -- The protobuf wire encoding of the TxResult message.
   tx_result BYTEA NOT NULL,
+  -- code of the tx verifying if it's successful or not
+  code INTEGER NOT NULL,
+  -- extra useful data
+  logs VARCHAR NOT NULL,
+  info VARCHAR NOT NULL,
+  gas_wanted BIGINT NOT NULL,
+  gas_used BIGINT NOT NULL,
+  codespace VARCHAR NOT NULL,
 
   UNIQUE (block_id, index)
 );
