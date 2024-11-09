@@ -233,11 +233,10 @@ SELECT rowid FROM `+tableBlocks+` WHERE height = $1 AND chain_id = $2;
 
 			// Insert a record for this tx_result and capture its ID for indexing events.
 			txID, err := QueryWithID(dbtx, `
-INSERT INTO `+tableTxResults+` (block_id, index, created_at, tx_hash, tx_result, code, logs, info, gas_wanted, gas_used, codespace)
-  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+INSERT INTO `+tableTxResults+` (block_id, height, index, created_at, tx_hash, tx_result)
+  VALUES ($1, $2, $3, $4, $5, $6)
   ON CONFLICT DO NOTHING
-  RETURNING rowid;
-`, blockID, txr.Index, ts, txHash, resultData, txr.Result.Code, txr.Result.Log, txr.Result.Info, txr.Result.GasWanted, txr.Result.GasUsed, txr.Result.Codespace)
+  RETURNING rowid;`, blockID, txr.Height, txr.Index, ts, txHash, resultData)
 			if err == sql.ErrNoRows {
 				return nil // we already saw this transaction; quietly succeed
 			} else if err != nil {

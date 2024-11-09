@@ -29,6 +29,7 @@ CREATE TABLE tx_results (
 
   -- The block to which this transaction belongs.
   block_id BIGINT NOT NULL REFERENCES blocks(rowid),
+  height     BIGINT NOT NULL,
   -- The sequential index of the transaction within the block.
   index INTEGER NOT NULL,
   -- When this result record was logged into the sink, in UTC.
@@ -37,14 +38,6 @@ CREATE TABLE tx_results (
   tx_hash VARCHAR NOT NULL,
   -- The protobuf wire encoding of the TxResult message.
   tx_result BYTEA NOT NULL,
-  -- code of the tx verifying if it's successful or not
-  code INTEGER NOT NULL,
-  -- extra useful data
-  logs VARCHAR NOT NULL,
-  info VARCHAR NOT NULL,
-  gas_wanted BIGINT NOT NULL,
-  gas_used BIGINT NOT NULL,
-  codespace VARCHAR NOT NULL,
 
   UNIQUE (block_id, index)
 );
@@ -87,7 +80,7 @@ CREATE VIEW block_events AS
 
 -- A joined view of all transaction events.
 CREATE VIEW tx_events AS
-  SELECT height, index, chain_id, type, key, composite_key, value, tx_results.created_at
+  SELECT blocks.height, index, chain_id, type, key, composite_key, value, tx_results.created_at
   FROM blocks JOIN tx_results ON (blocks.rowid = tx_results.block_id)
   JOIN event_attributes ON (tx_results.rowid = event_attributes.tx_id)
   WHERE event_attributes.tx_id IS NOT NULL;
