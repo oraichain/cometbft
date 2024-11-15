@@ -143,6 +143,10 @@ func insertEvents(dbtx *sql.Tx, blockID, txID uint32, evts []abci.Event) error {
 			if compositeKey == "block_bloom.bloom" {
 				continue
 			}
+			// max length of a row in psql
+			if len(attr.Value) > 8191 {
+				continue
+			}
 			attrValue := attr.Value
 			if hasNonPrintableChars(attr.Value) {
 				// convert to hex to safely store the value
