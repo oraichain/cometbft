@@ -177,6 +177,7 @@ func eventReIndex(cmd *cobra.Command, args eventReIndexArgs) error {
 						Index:  uint32(idx),
 						Tx:     block.Txs[idx],
 						Result: *txResult,
+						Time:   &block.Time,
 					}
 
 					if err = batch.Add(&tr); err != nil {
