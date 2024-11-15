@@ -153,7 +153,9 @@ func insertEvents(dbtx *sql.Tx, blockID, txID uint32, evts []abci.Event) error {
 				attrValue = fmt.Sprintf("%x\n", []byte(attr.Value))
 			}
 			if _, err := dbtx.Exec(insertAttributeQuery, eid, attr.Key, compositeKey, attrValue); err != nil {
-				return fmt.Errorf(fmt.Sprintf("Error processing attr: %v of event %v: %v\n", attr, evt.Type, err), "")
+				// since we can't control the values of the attrs, it's best we ignore attrs that have errors
+				fmt.Printf("error processing attr: %v of event %v: %v\n", attr, evt.Type, err)
+				continue
 			}
 		}
 	}
