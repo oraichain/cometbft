@@ -207,9 +207,10 @@ INSERT INTO `+tableBlocks+` (height, chain_id, created_at)
 			return fmt.Errorf("block meta-events: %w", err)
 		}
 		// Insert all the block events. Order is important here,
-		if err := insertEvents(dbtx, blockID, 0, h.Events); err != nil {
-			return fmt.Errorf("finalizeblock events: %w", err)
-		}
+		// We don't need block events -> reduce total number of attribute rows -> reduce query time
+		// if err := insertEvents(dbtx, blockID, 0, h.Events); err != nil {
+		// 	return fmt.Errorf("finalizeblock events: %w", err)
+		// }
 		return nil
 	})
 }
