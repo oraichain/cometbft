@@ -61,9 +61,7 @@ CREATE TABLE attributes (
    event_id      BIGINT NOT NULL REFERENCES events(rowid),
    key           VARCHAR NOT NULL, -- bare key
    composite_key VARCHAR NOT NULL, -- composed type.key
-   value         VARCHAR NULL,
-
-   UNIQUE (event_id, key)
+   value         VARCHAR NULL
 );
 
 -- A joined view of events and their attributes. Events that do not have any
