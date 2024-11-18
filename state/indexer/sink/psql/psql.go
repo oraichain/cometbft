@@ -95,12 +95,23 @@ func QueryWithID(tx *sql.Tx, query string, args ...interface{}) (uint32, error) 
 	return id, nil
 }
 
+// QueryWithID executes the specified SQL query with the given arguments,
+// expecting a single-row, single-column result containing an ID. If the query
+// succeeds, the ID from the result is returned.
+func QueryWithIDNoTx(tx *sql.DB, query string, args ...interface{}) (uint32, error) {
+	var id uint32
+	if err := tx.QueryRow(query, args...).Scan(&id); err != nil {
+		return 0, err
+	}
+	return id, nil
+}
+
 // insertEvents inserts a slice of events and any indexed attributes of those
 // events into the database associated with dbtx.
 //
 // If txID > 0, the event is attributed to the transaction with that
 // ID; otherwise it is recorded as a block event.
-func insertEvents(dbtx *sql.Tx, blockID, txID uint32, evts []abci.Event) error {
+func insertEvents(dbtx *sql.DB, blockID, txID uint32, evts []abci.Event) error {
 	// Populate the transaction ID field iff one is defined (> 0).
 	var txIDArg interface{}
 	if txID > 0 {
@@ -128,7 +139,7 @@ func insertEvents(dbtx *sql.Tx, blockID, txID uint32, evts []abci.Event) error {
 			continue
 		}
 
-		eid, err := QueryWithID(dbtx, insertEventQuery, blockID, txIDArg, evt.Type)
+		eid, err := QueryWithIDNoTx(dbtx, insertEventQuery, blockID, txIDArg, evt.Type)
 		if err != nil {
 			return fmt.Errorf(fmt.Sprintf("Error inserting event query: %v of event %v: %v: %v\n", blockID, txIDArg, evt.Type, err), "")
 		}
@@ -228,6 +239,9 @@ func (es *EventSink) IndexTxEvents(txrs []*abci.TxResult) error {
 		// Index the hash of the underlying transaction as a hex string.
 		txHash := fmt.Sprintf("%X", types.Tx(txr.Tx).Hash())
 
+		var curBlockID uint32
+		var curTxID uint32
+
 		if err := RunInTransaction(es.store, func(dbtx *sql.Tx) error {
 			// Find the block associated with this transaction. The block header
 			// must have been indexed prior to the transactions belonging to it.
@@ -237,6 +251,7 @@ SELECT rowid FROM `+tableBlocks+` WHERE height = $1 AND chain_id = $2;
 			if err != nil {
 				return fmt.Errorf("finding block ID: %w", err)
 			}
+			curBlockID = blockID
 
 			// Insert a record for this tx_result and capture its ID for indexing events.
 			txID, err := QueryWithID(dbtx, `
@@ -250,20 +265,23 @@ INSERT INTO `+tableTxResults+` (block_id, height, index, created_at, tx_hash, tx
 				return fmt.Errorf("indexing tx_result: %w", err)
 			}
 
-			// Insert the special transaction meta-events for hash and height.
-			if err := insertEvents(dbtx, blockID, txID, []abci.Event{
-				makeIndexedEvent(types.TxHashKey, txHash),
-				makeIndexedEvent(types.TxHeightKey, fmt.Sprint(txr.Height)),
-			}); err != nil {
-				return fmt.Errorf("indexing transaction meta-events: %w", err)
-			}
-			// Index any events packaged with the transaction.
-			if err := insertEvents(dbtx, blockID, txID, txr.Result.Events); err != nil {
-				return fmt.Errorf("indexing transaction events: %w", err)
-			}
+			curTxID = txID
+
 			return nil
 		}); err != nil {
 			return err
+		}
+
+		// Insert the special transaction meta-events for hash and height.
+		if err := insertEvents(es.DB(), curBlockID, curTxID, []abci.Event{
+			makeIndexedEvent(types.TxHashKey, txHash),
+			makeIndexedEvent(types.TxHeightKey, fmt.Sprint(txr.Height)),
+		}); err != nil {
+			return fmt.Errorf("indexing transaction meta-events: %w", err)
+		}
+		// Index any events packaged with the transaction.
+		if err := insertEvents(es.DB(), curBlockID, curTxID, txr.Result.Events); err != nil {
+			return fmt.Errorf("indexing transaction events: %w", err)
 		}
 	}
 	return nil
