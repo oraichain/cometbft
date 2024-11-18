@@ -188,7 +188,7 @@ func (es *EventSink) IndexBlockEvents(h types.EventDataNewBlockEvents) error {
 	return RunInTransaction(es.store, func(dbtx *sql.Tx) error {
 		// Add the block to the blocks table and report back its row ID for use
 		// in indexing the events for the block.
-		blockID, err := QueryWithID(dbtx, `
+		_, err := QueryWithID(dbtx, `
 INSERT INTO `+tableBlocks+` (height, chain_id, created_at)
   VALUES ($1, $2, $3)
   ON CONFLICT DO NOTHING
@@ -201,11 +201,11 @@ INSERT INTO `+tableBlocks+` (height, chain_id, created_at)
 		}
 
 		// Insert the special block meta-event for height.
-		if err := insertEvents(dbtx, blockID, 0, []abci.Event{
-			makeIndexedEvent(types.BlockHeightKey, fmt.Sprint(h.Height)),
-		}); err != nil {
-			return fmt.Errorf("block meta-events: %w", err)
-		}
+		// if err := insertEvents(dbtx, blockID, 0, []abci.Event{
+		// 	makeIndexedEvent(types.BlockHeightKey, fmt.Sprint(h.Height)),
+		// }); err != nil {
+		// 	return fmt.Errorf("block meta-events: %w", err)
+		// }
 		// Insert all the block events. Order is important here,
 		// We don't need block events -> reduce total number of attribute rows -> reduce query time
 		// if err := insertEvents(dbtx, blockID, 0, h.Events); err != nil {
