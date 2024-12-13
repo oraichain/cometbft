@@ -803,7 +803,6 @@ func TestMempoolSyncCheckTxReturnError(t *testing.T) {
 	mockClient.On("SetResponseCallback", mock.Anything)
 
 	mp, cleanup, err := newMempoolWithAppMock(mockClient)
-
 	require.NoError(t, err)
 	defer cleanup()
 
